@@ -1,5 +1,13 @@
-import { ComingSoon } from "@/components/app/coming-soon";
+import { Page } from "@/components/app/page-header";
+import { getMailboxConnection } from "@/lib/data";
+import { SettingsView } from "./settings-view";
 
-export default function Page() {
-  return <ComingSoon title="설정" description="W-11 설정은 다음 단계에서 만듭니다." />;
+/** W-11 설정 · 메일 연결 */
+export default async function SettingsPage() {
+  const mailbox = await getMailboxConnection();
+  return (
+    <Page crumbs={[{ label: "설정" }, { label: "메일 연결" }]}>
+      <SettingsView mailbox={mailbox} />
+    </Page>
+  );
 }
