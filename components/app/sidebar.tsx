@@ -2,84 +2,69 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Building2, Home, Inbox, Settings, Users } from "lucide-react";
 import { cn } from "cn";
 import { useDemoState } from "@/lib/demo-state";
 import { ROLE_LABEL } from "@/lib/labels";
 import type { User } from "@/lib/types";
+import { FigmaIcon } from "./icon";
 
 const NAV = [
-  { href: "/home", label: "홈", icon: Home },
-  { href: "/shippers", label: "화주", icon: Building2 },
-  { href: "/cases", label: "업무 건", icon: Briefcase },
-  { href: "/review", label: "검토함", icon: Inbox, badge: "review" as const },
-  { href: "/handover", label: "인계", icon: Users, soon: true },
+  { href: "/home", label: "홈", icon: "nav-home" },
+  { href: "/shippers", label: "화주", icon: "nav-shippers" },
+  { href: "/cases", label: "업무 건", icon: "nav-cases" },
+  { href: "/handover", label: "인계", icon: "nav-handover" },
+  { href: "/review", label: "검토함", icon: "nav-review", badge: true },
+  { href: "/settings", label: "설정", icon: "nav-settings" },
 ];
 
+/** 실무자 사이드바 (Figma "Sidebar / 실무자", 240px) */
 export function Sidebar({ user }: { user: User }) {
   const pathname = usePathname();
   const { openReviewCount } = useDemoState();
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-sidebar-border bg-sidebar">
-      <Link href="/home" className="flex h-16 items-center gap-2 px-5">
-        <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-          S
-        </span>
-        <span className="text-[17px] font-bold tracking-tight text-foreground">SynCargo</span>
-      </Link>
-
-      <nav className="flex-1 space-y-0.5 px-3 pt-2">
-        {NAV.map((item) => {
-          const active = isActive(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-muted",
-              )}
-            >
-              <Icon className="size-[18px]" />
-              <span className="flex-1">{item.label}</span>
-              {item.badge === "review" && openReviewCount > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white tabular-nums">
-                  {openReviewCount}
-                </span>
-              )}
-              {item.soon && <span className="text-[11px] font-normal text-muted-foreground">준비 중</span>}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="space-y-0.5 border-t border-sidebar-border px-3 py-3">
-        <Link
-          href="/settings"
-          className={cn(
-            "flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
-            isActive("/settings")
-              ? "bg-sidebar-accent text-sidebar-accent-foreground"
-              : "text-sidebar-foreground hover:bg-muted",
-          )}
-        >
-          <Settings className="size-[18px]" />
-          설정
-        </Link>
-        <div className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2">
-          <span className="flex size-8 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-primary">
-            {user.name.slice(0, 1)}
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col justify-between border-r border-border bg-sidebar px-3.5 pt-[22px] pb-[18px]">
+      <div className="flex flex-col gap-6">
+        <Link href="/home" className="flex items-center gap-2.5 px-2">
+          <span className="flex size-[30px] items-center justify-center rounded-lg bg-logo">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/figma/logo-mark.svg" alt="" width={18} height={18} className="size-[18px]" />
           </span>
-          <div className="min-w-0 leading-tight">
-            <p className="truncate text-sm font-semibold">{user.name}</p>
-            <p className="text-xs text-muted-foreground">{ROLE_LABEL[user.role]}</p>
-          </div>
+          <span className="text-lg font-bold text-foreground">SynCargo</span>
+        </Link>
+
+        <nav className="flex flex-col gap-1">
+          {NAV.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-[11px] text-[15px] transition-colors",
+                  active ? "bg-sidebar-accent font-semibold text-primary" : "font-medium text-ink-2 hover:bg-subtle",
+                )}
+              >
+                <FigmaIcon name={item.icon} />
+                <span className="flex-1">{item.label}</span>
+                {item.badge && openReviewCount > 0 && (
+                  <span className="rounded-full bg-danger-soft px-2 py-0.5 text-xs font-bold text-danger tabular-nums">
+                    {openReviewCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
+      <div className="flex items-center gap-2.5 border-t border-border px-2 pt-3 pb-1">
+        <span className="flex size-8 items-center justify-center rounded-full bg-avatar text-[13px] font-bold text-primary">
+          {user.name.slice(0, 1)}
+        </span>
+        <div className="leading-tight">
+          <p className="text-sm font-semibold text-foreground">{user.name}</p>
+          <p className="text-xs text-muted-foreground">{ROLE_LABEL[user.role]}</p>
         </div>
       </div>
     </aside>

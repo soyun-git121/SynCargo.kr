@@ -4,6 +4,7 @@
  */
 import * as db from "./mock";
 import { daysUntil } from "./date";
+import { STATUS_RANK } from "./labels";
 import type {
   Attachment,
   Case,
@@ -11,11 +12,11 @@ import type {
   CorrectionLog,
   ExtractedItem,
   Mail,
-  MailCaseLink,
   MailboxConnection,
   OffMailInfo,
   ReviewItem,
   Shipper,
+  ShipperChange,
   ShipperPattern,
   User,
 } from "./types";
@@ -27,59 +28,76 @@ export interface CaseSummary extends Case {
   ownerName: string;
 }
 
-export interface ShipperSummary extends Shipper {
-  ownerName: string;
-  activeCaseCount: number;
-  needsCheckCount: number;
-  /** 가장 가까운 마감 */
-  nextDeadline: { caseCode: string; label: string; date: string } | null;
-  lastMailAt: string | null;
-}
-
 export interface MailWithAttachments extends Mail {
   attachments: Attachment[];
 }
 
+export interface HomeTask {
+  id: string;
+  title: string;
+  dueDate: string;
+  daysLeft: number;
+  case: CaseSummary;
+}
+
 export interface HomeData {
   user: User;
-  counts: { needsCheck: number; awaitingReply: number; inProgress: number; dueThisWeek: number };
-  /** 오늘 확인할 건 (확인 필요 + 임박 마감) */
-  needsCheck: CaseSummary[];
-  deadlines: (CaseSummary & { daysLeft: number })[];
-  recentChanges: (CaseEvent & { caseCode: string; shipperName: string })[];
-  awaitingReply: CaseSummary[];
+  receivedHandover: { fromName: string; shipperSummary: string; approvedAt: string } | null;
+  tasks: HomeTask[];
+  /** 오늘 움직인 건 — 확인 필요가 먼저 */
+  movedCases: CaseSummary[];
 }
 
 export interface CaseDetail {
-  case: Case;
+  case: CaseSummary;
   shipper: Shipper;
   owner: User;
-  extractedItems: ExtractedItem[];
+  /** 오래된 순 */
   events: CaseEvent[];
-  mails: MailWithAttachments[];
+  attachments: Attachment[];
   offMailInfos: OffMailInfo[];
+  extractedItems: ExtractedItem[];
+}
+
+export interface EvidenceItem extends ExtractedItem {
+  mail: MailWithAttachments;
+}
+
+export interface CaseEvidence {
+  case: CaseSummary;
+  items: EvidenceItem[];
+  /** 이 메일과 연결된 검토 항목(있으면 "연결 수정"이 그 항목으로 감) */
+  reviewItemIdByMail: Record<string, string>;
+}
+
+export interface ShipperSummary extends Shipper {
+  ownerName: string;
+  activeCaseCount: number;
+  needsCheckCount: number;
 }
 
 export interface ShipperDetail {
   shipper: Shipper;
   owner: User;
-  cases: CaseSummary[];
-  patterns: ShipperPattern[];
-  recentMails: Mail[];
+  activeCases: (CaseSummary & { issue: string | null })[];
+  doneCaseCount: number;
+  /** "지금 챙길 것" — 확인 필요·답변 대기 건 + 확인 필요 반복 조건 */
+  attentionCount: number;
+  patterns: (ShipperPattern & { confirmedByName: string | null })[];
+  changes: ShipperChange[];
+  memoUpdatedByName: string | null;
 }
 
-export interface MailDetail {
-  mail: MailWithAttachments;
-  links: (MailCaseLink & { caseCode: string; shipperName: string })[];
-  /** 이 메일에서 뽑힌 값들 (근거 문장 강조용) */
-  extractedItems: (ExtractedItem & { caseCode: string })[];
-  /** 같은 대화의 다른 메일 */
-  thread: Mail[];
+export interface ReviewCandidateDetail {
+  shipper: Shipper;
+  case: CaseSummary | null;
+  confidence: number;
 }
 
 export interface ReviewItemDetail extends ReviewItem {
   mail: MailWithAttachments;
-  candidateCases: (CaseSummary & { confidence: number; candidateReason: string })[];
+  candidateDetails: ReviewCandidateDetail[];
+  extractedItems: ExtractedItem[];
 }
 
 export interface CorrectionLogDetail extends CorrectionLog {
@@ -89,17 +107,22 @@ export interface CorrectionLogDetail extends CorrectionLog {
 /* ───────────── 내부 헬퍼 ───────────── */
 
 const clone = <T>(v: T): T => structuredClone(v);
+const byDesc = (a: string, b: string) => (a < b ? 1 : a > b ? -1 : 0);
+const byAsc = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-function userName(id: string): string {
-  return db.users.find((u) => u.id === id)?.name ?? "알 수 없음";
+function userName(id: string | null): string | null {
+  if (!id) return null;
+  return db.users.find((u) => u.id === id)?.name ?? null;
 }
 
-function shipperName(id: string): string {
-  return db.shippers.find((s) => s.id === id)?.name ?? "미지정";
+function findShipper(id: string): Shipper {
+  const s = db.shippers.find((x) => x.id === id);
+  if (!s) throw new Error(`shipper ${id} not found`);
+  return s;
 }
 
 function summarize(c: Case): CaseSummary {
-  return { ...clone(c), shipperName: shipperName(c.shipperId), ownerName: userName(c.ownerId) };
+  return { ...clone(c), shipperName: findShipper(c.shipperId).name, ownerName: userName(c.ownerId) ?? "" };
 }
 
 function withAttachments(m: Mail): MailWithAttachments {
@@ -107,10 +130,19 @@ function withAttachments(m: Mail): MailWithAttachments {
 }
 
 function findCase(idOrCode: string): Case | undefined {
-  return db.cases.find((c) => c.id === idOrCode || c.code === idOrCode);
+  const key = decodeURIComponent(idOrCode);
+  return db.cases.find((c) => c.id === key || c.code === key);
 }
 
-const byDateDesc = (a: string, b: string) => (a < b ? 1 : a > b ? -1 : 0);
+/** 다음 기한 가까운 순, 같으면 확인 필요 먼저 */
+function byDeadline(a: Case, b: Case): number {
+  const da = a.nextDeadline?.date ?? "9999-12-31";
+  const dbb = b.nextDeadline?.date ?? "9999-12-31";
+  if (da !== dbb) return byAsc(da, dbb);
+  return STATUS_RANK[a.status] - STATUS_RANK[b.status];
+}
+
+const DOC_ORDER = ["B/L", "Invoice", "Packing List"];
 
 /* ───────────── 사용자 · 회사 ───────────── */
 
@@ -122,72 +154,100 @@ export async function getUsers(): Promise<User[]> {
   return clone(db.users);
 }
 
-export async function getCompany() {
-  return clone(db.company);
-}
-
 export async function getMailboxConnection(): Promise<MailboxConnection | null> {
   return clone(db.mailboxConnections.find((m) => m.userId === db.CURRENT_USER_ID) ?? null);
 }
 
-/* ───────────── 홈 ───────────── */
+/* ───────────── 홈 (W-01) ───────────── */
 
 export async function getHome(): Promise<HomeData> {
   const user = await getCurrentUser();
-  const mine = db.cases.filter((c) => c.ownerId === user.id && c.status !== "done").map(summarize);
 
-  const deadlines = mine
-    .filter((c) => c.nextDeadline)
-    .map((c) => ({ ...c, daysLeft: daysUntil(c.nextDeadline!.date) }))
-    .filter((c) => c.daysLeft >= 0 && c.daysLeft <= 7)
-    .sort((a, b) => a.daysLeft - b.daysLeft);
+  const h = db.handovers.find((x) => x.toUserId === user.id && x.status === "approved");
+  const receivedHandover = h
+    ? {
+        fromName: userName(h.fromUserId) ?? "",
+        shipperSummary:
+          h.shipperIds.length > 1
+            ? `${findShipper(h.shipperIds[0]).name} 외 ${h.shipperIds.length - 1}곳`
+            : findShipper(h.shipperIds[0]).name,
+        approvedAt: h.approvedAt!,
+      }
+    : null;
 
-  const myCaseIds = new Set(mine.map((c) => c.id));
-  const recentChanges = db.caseEvents
-    .filter((e) => myCaseIds.has(e.caseId) && (e.type === "changed" || e.type === "stage" || e.type === "extracted"))
-    .sort((a, b) => byDateDesc(a.at, b.at))
-    .slice(0, 6)
-    .map((e) => {
-      const c = findCase(e.caseId)!;
-      return { ...clone(e), caseCode: c.code, shipperName: shipperName(c.shipperId) };
+  const tasks = db.caseTasks
+    .filter((t) => t.ownerId === user.id && !t.done)
+    .sort((a, b) => byAsc(a.dueDate, b.dueDate))
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      dueDate: t.dueDate,
+      daysLeft: daysUntil(t.dueDate),
+      case: summarize(findCase(t.caseId)!),
+    }));
+
+  const movedCases = db.cases
+    .filter((c) => c.ownerId === user.id && c.status !== "done" && c.latestChange)
+    .sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || byDesc(a.latestChange!.at, b.latestChange!.at))
+    .map(summarize);
+
+  return { user, receivedHandover, tasks, movedCases };
+}
+
+/* ───────────── 업무 건 (W-04 / W-05 / W-07) ───────────── */
+
+/** 진행 중인 건 + 완료 건. 정렬: 다음 기한 가까운 순 · 같으면 확인 필요 먼저 */
+export async function getCases(): Promise<CaseSummary[]> {
+  const active = db.cases.filter((c) => c.status !== "done").sort(byDeadline);
+  const done = db.cases.filter((c) => c.status === "done").sort((a, b) => byDesc(a.closedAt ?? "", b.closedAt ?? ""));
+  return [...active, ...done].map(summarize);
+}
+
+/** id 또는 건 번호(SC-2611-014)로 조회 */
+export async function getCase(idOrCode: string): Promise<CaseDetail | null> {
+  const c = findCase(idOrCode);
+  if (!c) return null;
+  const mailIds = new Set(db.mailCaseLinks.filter((l) => l.caseId === c.id).map((l) => l.mailId));
+  const attachments = db.attachments
+    .filter((a) => mailIds.has(a.mailId))
+    .sort((a, b) => {
+      const ia = DOC_ORDER.indexOf(a.docType);
+      const ib = DOC_ORDER.indexOf(b.docType);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     });
-
   return {
-    user,
-    counts: {
-      needsCheck: mine.filter((c) => c.status === "needs_check").length,
-      awaitingReply: mine.filter((c) => c.status === "awaiting_reply").length,
-      inProgress: mine.filter((c) => c.status === "in_progress").length,
-      dueThisWeek: deadlines.length,
-    },
-    needsCheck: mine.filter((c) => c.status === "needs_check"),
-    deadlines,
-    recentChanges,
-    awaitingReply: mine.filter((c) => c.status === "awaiting_reply"),
+    case: summarize(c),
+    shipper: clone(findShipper(c.shipperId)),
+    owner: clone(db.users.find((u) => u.id === c.ownerId)!),
+    events: clone(db.caseEvents.filter((e) => e.caseId === c.id)).sort((a, b) => byAsc(a.at, b.at)),
+    attachments: clone(attachments),
+    offMailInfos: clone(db.offMailInfos.filter((o) => o.caseId === c.id)).sort((a, b) => byDesc(a.confirmedAt, b.confirmedAt)),
+    extractedItems: clone(db.extractedItems.filter((x) => x.caseId === c.id)),
   };
 }
 
-/* ───────────── 화주 ───────────── */
+/** W-07 원문 보기: 건의 추출 항목 + 각 항목의 근거 메일 */
+export async function getCaseEvidence(idOrCode: string): Promise<CaseEvidence | null> {
+  const c = findCase(idOrCode);
+  if (!c) return null;
+  const items = db.extractedItems
+    .filter((x) => x.caseId === c.id)
+    .map((x) => ({ ...clone(x), mail: withAttachments(db.mails.find((m) => m.id === x.evidence.mailId)!) }));
+  const reviewItemIdByMail: Record<string, string> = {};
+  for (const r of db.reviewItems) reviewItemIdByMail[r.mailId] = r.id;
+  return { case: summarize(c), items, reviewItemIdByMail };
+}
+
+/* ───────────── 화주 (W-02 / W-03) ───────────── */
 
 export async function getShippers(): Promise<ShipperSummary[]> {
   return db.shippers.map((s) => {
-    const sc = db.cases.filter((c) => c.shipperId === s.id);
-    const active = sc.filter((c) => c.status !== "done");
-    const next = active
-      .filter((c) => c.nextDeadline && daysUntil(c.nextDeadline.date) >= 0)
-      .sort((a, b) => (a.nextDeadline!.date < b.nextDeadline!.date ? -1 : 1))[0];
-    const caseIds = new Set(sc.map((c) => c.id));
-    const mailIds = new Set(db.mailCaseLinks.filter((l) => caseIds.has(l.caseId)).map((l) => l.mailId));
-    const lastMail = db.mails
-      .filter((m) => mailIds.has(m.id))
-      .sort((a, b) => byDateDesc(a.receivedAt, b.receivedAt))[0];
+    const active = db.cases.filter((c) => c.shipperId === s.id && c.status !== "done");
     return {
       ...clone(s),
-      ownerName: userName(s.ownerId),
+      ownerName: userName(s.ownerId) ?? "",
       activeCaseCount: active.length,
       needsCheckCount: active.filter((c) => c.status === "needs_check").length,
-      nextDeadline: next ? { caseCode: next.code, label: next.nextDeadline!.label, date: next.nextDeadline!.date } : null,
-      lastMailAt: lastMail?.receivedAt ?? null,
     };
   });
 }
@@ -195,110 +255,79 @@ export async function getShippers(): Promise<ShipperSummary[]> {
 export async function getShipper(id: string): Promise<ShipperDetail | null> {
   const shipper = db.shippers.find((s) => s.id === id);
   if (!shipper) return null;
-  const cases = db.cases.filter((c) => c.shipperId === id).map(summarize);
-  const caseIds = new Set(cases.map((c) => c.id));
-  const mailIds = new Set(db.mailCaseLinks.filter((l) => caseIds.has(l.caseId)).map((l) => l.mailId));
+  const all = db.cases.filter((c) => c.shipperId === id);
+  const activeCases = all
+    .filter((c) => c.status !== "done" && c.code)
+    .sort(byDeadline)
+    .map((c) => {
+      const issue = db.caseEvents.find((e) => e.caseId === c.id && e.kind === "issue");
+      return { ...summarize(c), issue: c.status === "needs_check" ? (issue?.title ?? null) : null };
+    });
+  const patterns = db.shipperPatterns
+    .filter((p) => p.shipperId === id)
+    .sort((a, b) => (a.status === b.status ? byDesc(a.confirmedAt ?? "", b.confirmedAt ?? "") : a.status === "suggested" ? -1 : 1))
+    .map((p) => ({ ...clone(p), confirmedByName: userName(p.confirmedBy) }));
+  const attentionCount =
+    all.filter((c) => c.status === "needs_check" || c.status === "awaiting_reply").length +
+    patterns.filter((p) => p.status === "suggested").length +
+    db.shipperChanges.filter((ch) => ch.shipperId === id && ch.status === "needs_check").length;
   return {
     shipper: clone(shipper),
     owner: clone(db.users.find((u) => u.id === shipper.ownerId)!),
-    cases,
-    patterns: clone(db.shipperPatterns.filter((p) => p.shipperId === id)),
-    recentMails: clone(
-      db.mails.filter((m) => mailIds.has(m.id)).sort((a, b) => byDateDesc(a.receivedAt, b.receivedAt)),
-    ),
+    activeCases,
+    doneCaseCount: all.filter((c) => c.status === "done").length,
+    attentionCount,
+    patterns,
+    changes: clone(db.shipperChanges.filter((ch) => ch.shipperId === id)).sort((a, b) => byDesc(a.at, b.at)),
+    memoUpdatedByName: userName(shipper.memoUpdatedBy),
   };
 }
 
-/* ───────────── 업무 건 ───────────── */
-
-export async function getCases(): Promise<CaseSummary[]> {
-  return db.cases.map(summarize).sort((a, b) => byDateDesc(a.updatedAt, b.updatedAt));
-}
-
-/** id 또는 건 번호(SC-2611-014)로 조회 */
-export async function getCase(idOrCode: string): Promise<CaseDetail | null> {
-  const c = findCase(idOrCode);
-  if (!c) return null;
-  const mailIds = new Set(
-    db.mailCaseLinks.filter((l) => l.caseId === c.id && l.status !== "rejected").map((l) => l.mailId),
-  );
-  return {
-    case: clone(c),
-    shipper: clone(db.shippers.find((s) => s.id === c.shipperId)!),
-    owner: clone(db.users.find((u) => u.id === c.ownerId)!),
-    extractedItems: clone(db.extractedItems.filter((x) => x.caseId === c.id)),
-    events: clone(db.caseEvents.filter((e) => e.caseId === c.id)).sort((a, b) => byDateDesc(a.at, b.at)),
-    mails: db.mails
-      .filter((m) => mailIds.has(m.id))
-      .sort((a, b) => byDateDesc(a.receivedAt, b.receivedAt))
-      .map(withAttachments),
-    offMailInfos: clone(db.offMailInfos.filter((o) => o.caseId === c.id)),
-  };
-}
-
-/* ───────────── 메일 원문 ───────────── */
-
-export async function getMail(id: string): Promise<MailDetail | null> {
-  const m = db.mails.find((x) => x.id === id);
-  if (!m) return null;
-  const links = db.mailCaseLinks
-    .filter((l) => l.mailId === id)
-    .map((l) => {
-      const c = findCase(l.caseId)!;
-      return { ...clone(l), caseCode: c.code, shipperName: shipperName(c.shipperId) };
-    });
-  const extractedItems = db.extractedItems
-    .filter((x) => x.evidence.mailId === id)
-    .map((x) => ({ ...clone(x), caseCode: findCase(x.caseId)!.code }));
-  const thread = clone(
-    db.mails
-      .filter((x) => x.conversationId === m.conversationId && x.id !== id)
-      .sort((a, b) => byDateDesc(a.receivedAt, b.receivedAt)),
-  );
-  return { mail: withAttachments(m), links, extractedItems, thread };
-}
-
-/* ───────────── 검토함 ───────────── */
+/* ───────────── 검토함 (W-10 / W-13 / W-14) ───────────── */
 
 export async function getReviewItems(): Promise<ReviewItemDetail[]> {
   return db.reviewItems
-    .map((r) => {
-      const mail = withAttachments(db.mails.find((m) => m.id === r.mailId)!);
-      const candidateCases = r.candidates.map((cand) => ({
-        ...summarize(findCase(cand.caseId)!),
-        confidence: cand.confidence,
-        candidateReason: cand.reason,
-      }));
-      return { ...clone(r), mail, candidateCases };
-    })
-    .sort((a, b) => byDateDesc(a.mail.receivedAt, b.mail.receivedAt));
+    .map((r) => ({
+      ...clone(r),
+      mail: withAttachments(db.mails.find((m) => m.id === r.mailId)!),
+      candidateDetails: r.candidates.map((cand) => {
+        const c = cand.caseId ? findCase(cand.caseId) : undefined;
+        return { shipper: clone(findShipper(cand.shipperId)), case: c ? summarize(c) : null, confidence: cand.confidence };
+      }),
+      extractedItems: clone(db.extractedItems.filter((x) => r.extractedItemIds.includes(x.id))),
+    }))
+    .sort((a, b) => byDesc(a.mail.receivedAt, b.mail.receivedAt));
+}
+
+/** 사이드바·홈 배지용: 열린 검토 항목 (클라이언트에서 확정분을 빼서 표시) */
+export async function getOpenReviews(): Promise<{ id: string; type: ReviewItem["type"] }[]> {
+  return db.reviewItems.filter((r) => r.status === "open").map((r) => ({ id: r.id, type: r.type }));
 }
 
 export async function getCorrectionLogs(): Promise<CorrectionLogDetail[]> {
   return db.correctionLogs
-    .map((l) => ({ ...clone(l), correctedByName: userName(l.correctedBy) }))
-    .sort((a, b) => byDateDesc(a.correctedAt, b.correctedAt));
+    .map((l) => ({ ...clone(l), correctedByName: userName(l.correctedBy) ?? "" }))
+    .sort((a, b) => byDesc(a.correctedAt, b.correctedAt));
 }
 
-/** 사이드바 배지용: 열린 검토 항목 ID (클라이언트에서 확정분을 빼서 표시) */
-export async function getOpenReviewIds(): Promise<string[]> {
-  return db.reviewItems.filter((r) => r.status === "open").map((r) => r.id);
+/** 검토함 "기존 건에 연결" 선택지 */
+export async function getCaseOptions(): Promise<CaseSummary[]> {
+  return db.cases.filter((c) => c.status !== "done").sort(byDeadline).map(summarize);
 }
 
-/** 상단 검색 */
-export async function search(query: string): Promise<{
-  cases: CaseSummary[];
-  shippers: Shipper[];
-  mails: Mail[];
-}> {
+/* ───────────── 검색 (TopBar) ───────────── */
+
+export async function search(query: string): Promise<{ cases: CaseSummary[]; shippers: Shipper[] }> {
   const q = query.trim().toLowerCase();
-  if (!q) return { cases: [], shippers: [], mails: [] };
+  if (!q) return { cases: [], shippers: [] };
   const has = (...v: (string | null)[]) => v.some((x) => x?.toLowerCase().includes(q));
   return {
     cases: db.cases
-      .filter((c) => has(c.code, c.title, c.blNo, c.bookingNo, shipperName(c.shipperId)))
+      .filter((c) => c.status !== "done" || has(c.code))
+      .filter((c) => has(c.code, c.blNo, c.bookingNo, findShipper(c.shipperId).name, c.route))
+      .sort(byDeadline)
+      .slice(0, 8)
       .map(summarize),
-    shippers: clone(db.shippers.filter((s) => has(s.name, s.contactName))),
-    mails: clone(db.mails.filter((m) => has(m.subject, m.from.name))),
+    shippers: clone(db.shippers.filter((s) => has(s.name))),
   };
 }

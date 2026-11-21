@@ -2,41 +2,51 @@ import { cn } from "cn";
 import { STATUS_LABEL } from "@/lib/labels";
 import type { CaseStatus } from "@/lib/types";
 
-const STYLE: Record<CaseStatus, string> = {
-  needs_check: "bg-danger-soft text-danger",
-  awaiting_reply: "bg-warning-soft text-warning",
-  in_progress: "bg-neutral-soft text-neutral",
-  done: "bg-success-soft text-success",
+export type PillTone = "red" | "yellow" | "gray" | "green" | "blue";
+
+const TONE: Record<PillTone, string> = {
+  red: "bg-danger-soft text-danger",
+  yellow: "bg-warning-soft text-warning",
+  gray: "bg-neutral-soft text-neutral",
+  green: "bg-success-soft text-success",
+  blue: "bg-brand-soft text-primary",
 };
 
-const DOT: Record<CaseStatus, string> = {
-  needs_check: "bg-danger",
-  awaiting_reply: "bg-warning",
-  in_progress: "bg-neutral",
-  done: "bg-success",
-};
-
-/** 상태 배지: 빨강=확인 필요, 노랑=답변 대기, 회색=진행 중, 초록=완료/확정 */
-export function StatusPill({
-  status,
-  label,
+/** Figma "Pill": 둥근 배지, 12px Bold */
+export function Pill({
+  tone,
+  children,
   className,
 }: {
-  status: CaseStatus;
-  /** 기본 문구 대신 쓸 텍스트 (예: "확정") */
-  label?: string;
+  tone: PillTone;
+  children: React.ReactNode;
   className?: string;
 }) {
   return (
     <span
       className={cn(
-        "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium whitespace-nowrap",
-        STYLE[status],
+        "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs leading-none font-bold whitespace-nowrap",
+        TONE[tone],
         className,
       )}
     >
-      <span className={cn("size-1.5 rounded-full", DOT[status])} />
-      {label ?? STATUS_LABEL[status]}
+      {children}
     </span>
+  );
+}
+
+export const STATUS_TONE: Record<CaseStatus, PillTone> = {
+  needs_check: "red",
+  awaiting_reply: "yellow",
+  in_progress: "gray",
+  done: "green",
+};
+
+/** 상태 배지: 빨강=확인 필요, 노랑=답변 대기, 회색=진행 중, 초록=완료 */
+export function StatusPill({ status, className }: { status: CaseStatus; className?: string }) {
+  return (
+    <Pill tone={STATUS_TONE[status]} className={className}>
+      {STATUS_LABEL[status]}
+    </Pill>
   );
 }

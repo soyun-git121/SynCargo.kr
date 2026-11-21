@@ -27,10 +27,19 @@ export function formatMD(date: string): string {
   return `${m}/${d}`;
 }
 
-/** "11/18(수)" */
+function weekday(date: string): string {
+  return WEEKDAYS[new Date(toUTC(date)).getUTCDay()];
+}
+
+/** "11/18 (수)" */
 export function formatMDW(date: string): string {
-  const w = new Date(toUTC(date)).getUTCDay();
-  return `${formatMD(date)}(${WEEKDAYS[w]})`;
+  return `${formatMD(date)} (${weekday(date)})`;
+}
+
+/** "11월 16일 (월)" */
+export function formatKoreanDate(date: string): string {
+  const [, m, d] = date.slice(0, 10).split("-").map(Number);
+  return `${m}월 ${d}일 (${weekday(date)})`;
 }
 
 /** "2026.11.18" */

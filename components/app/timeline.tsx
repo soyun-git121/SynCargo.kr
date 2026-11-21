@@ -1,71 +1,65 @@
-import Link from "next/link";
-import { ArrowRightLeft, Flag, Mail, Phone, Sparkles, StickyNote } from "lucide-react";
 import { cn } from "cn";
-import { formatDateTime } from "@/lib/date";
-import type { CaseEventType } from "@/lib/types";
+import { EVENT_KIND_LABEL } from "@/lib/labels";
+import type { CaseEventKind } from "@/lib/types";
+import { Pill, type PillTone } from "./status-pill";
 
 export interface TimelineEntry {
   id: string;
-  type: CaseEventType;
+  kind: CaseEventKind;
   title: string;
-  description?: string;
-  at: string;
-  /** 원문 보기 링크 등 */
-  href?: string;
-  hrefLabel?: string;
+  /** "11/12 · A전자 박과장" */
+  meta: string;
+  /** 오른쪽: "원문 ↗" 링크 또는 버튼 */
+  action?: React.ReactNode;
 }
 
-const ICON: Record<CaseEventType, React.ComponentType<{ className?: string }>> = {
-  mail: Mail,
-  extracted: Sparkles,
-  changed: ArrowRightLeft,
-  stage: Flag,
-  off_mail: Phone,
-  note: StickyNote,
+const TONE: Record<CaseEventKind, PillTone> = {
+  request: "blue",
+  reply: "gray",
+  confirm: "green",
+  issue: "red",
+  off_mail: "yellow",
 };
 
-const TONE: Record<CaseEventType, string> = {
-  mail: "bg-neutral-soft text-neutral",
-  extracted: "bg-brand-soft text-primary",
-  changed: "bg-warning-soft text-warning",
-  stage: "bg-success-soft text-success",
-  off_mail: "bg-neutral-soft text-neutral",
-  note: "bg-neutral-soft text-neutral",
+const DOT: Record<CaseEventKind, string> = {
+  request: "dot-blue",
+  reply: "dot-gray",
+  confirm: "dot-green",
+  issue: "dot-red",
+  off_mail: "dot-yellow",
 };
 
-/** 건 상세 타임라인 (최신순) */
+/** 변경 타임라인 (Figma W-05). 확인 필요 항목은 빨간 배경으로 강조. */
 export function Timeline({ entries, className }: { entries: TimelineEntry[]; className?: string }) {
   if (entries.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">기록이 없습니다.</p>;
+    return <p className="py-6 text-center text-sm text-muted-foreground">아직 기록이 없습니다.</p>;
   }
   return (
-    <ol className={cn("relative", className)}>
+    <ol className={cn("flex flex-col", className)}>
       {entries.map((e, i) => {
-        const Icon = ICON[e.type];
+        const last = i === entries.length - 1;
+        const issue = e.kind === "issue";
         return (
-          <li key={e.id} className="relative flex gap-3 pb-5 last:pb-0">
-            {i < entries.length - 1 && (
-              <span className="absolute top-8 bottom-0 left-[13px] w-px bg-border" aria-hidden />
-            )}
-            <span
+          <li key={e.id} className="flex gap-3.5">
+            <div className="flex w-3.5 shrink-0 flex-col items-center gap-1.5 pt-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/figma/${DOT[e.kind]}.svg`} alt="" width={12} height={12} className="size-3 shrink-0" />
+              {!last && <span className="w-0.5 flex-1 bg-border" />}
+            </div>
+            <div
               className={cn(
-                "relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full",
-                TONE[e.type],
+                "flex min-w-0 flex-1 items-center gap-3 py-3",
+                issue && "my-1 rounded-[10px] bg-danger-soft px-3",
               )}
             >
-              <Icon className="size-3.5" />
-            </span>
-            <div className="min-w-0 flex-1 pt-0.5">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-medium text-foreground">{e.title}</p>
-                <time className="shrink-0 font-mono text-xs text-muted-foreground">{formatDateTime(e.at)}</time>
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Pill tone={TONE[e.kind]}>{EVENT_KIND_LABEL[e.kind]}</Pill>
+                  <p className="truncate text-[15px] font-semibold text-foreground">{e.title}</p>
+                </div>
+                <p className={cn("text-[13px]", issue ? "text-danger-ink" : "text-muted-foreground")}>{e.meta}</p>
               </div>
-              {e.description && <p className="mt-0.5 text-[13px] text-muted-foreground">{e.description}</p>}
-              {e.href && (
-                <Link href={e.href} className="mt-1 inline-block text-xs font-medium text-primary hover:underline">
-                  {e.hrefLabel ?? "원문 보기"} →
-                </Link>
-              )}
+              {e.action && <div className="shrink-0">{e.action}</div>}
             </div>
           </li>
         );

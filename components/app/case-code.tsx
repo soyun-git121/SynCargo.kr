@@ -1,23 +1,10 @@
-import Link from "next/link";
 import { cn } from "cn";
+import { NO_CODE_LABEL } from "@/lib/labels";
 
-/** 건 번호 (고정폭 글꼴). href를 주면 링크. */
-export function CaseCode({
-  code,
-  href,
-  className,
-}: {
-  code: string;
-  href?: string;
-  className?: string;
-}) {
-  const cls = cn("font-mono text-[13px] font-medium tracking-tight text-foreground", className);
-  if (href) {
-    return (
-      <Link href={href} className={cn(cls, "underline-offset-2 hover:text-primary hover:underline")}>
-        {code}
-      </Link>
-    );
+/** 건 번호: 고정폭 글꼴. 번호 없는 건(국내 운송·통관)은 "번호 없음"을 회색으로. */
+export function CaseCode({ code, className }: { code: string | null; className?: string }) {
+  if (!code) {
+    return <span className={cn("text-sm font-semibold text-muted-foreground", className)}>{NO_CODE_LABEL}</span>;
   }
-  return <span className={cls}>{code}</span>;
+  return <span className={cn("font-mono text-sm font-semibold text-foreground", className)}>{code}</span>;
 }

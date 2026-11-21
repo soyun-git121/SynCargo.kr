@@ -1,4 +1,12 @@
-import type { CaseStage, CaseStatus, Role, TransportMode } from "./types";
+import type {
+  CaseEventKind,
+  CaseKind,
+  CaseStage,
+  CaseStatus,
+  OffMailSource,
+  Role,
+  TradeType,
+} from "./types";
 
 export const STAGES: { key: CaseStage; label: string }[] = [
   { key: "booking", label: "부킹" },
@@ -8,14 +16,6 @@ export const STAGES: { key: CaseStage; label: string }[] = [
   { key: "settlement", label: "정산" },
 ];
 
-export const STAGE_LABEL: Record<CaseStage, string> = {
-  booking: "부킹",
-  docs: "서류",
-  shipping: "선적",
-  arrival: "도착",
-  settlement: "정산",
-};
-
 export const STATUS_LABEL: Record<CaseStatus, string> = {
   needs_check: "확인 필요",
   awaiting_reply: "답변 대기",
@@ -23,7 +23,15 @@ export const STATUS_LABEL: Record<CaseStatus, string> = {
   done: "완료",
 };
 
-export const MODE_LABEL: Record<TransportMode, string> = {
+/** 정렬용: 확인 필요가 먼저 */
+export const STATUS_RANK: Record<CaseStatus, number> = {
+  needs_check: 0,
+  awaiting_reply: 1,
+  in_progress: 2,
+  done: 3,
+};
+
+export const TRADE_TYPE_LABEL: Record<TradeType, string> = {
   sea_export: "해상 수출",
   sea_import: "해상 수입",
   air_export: "항공 수출",
@@ -31,8 +39,31 @@ export const MODE_LABEL: Record<TransportMode, string> = {
   domestic: "국내 운송",
 };
 
+export const CASE_KIND_LABEL: Record<CaseKind, string> = {
+  shipment: "선적",
+  domestic: "국내 운송",
+  customs: "통관",
+};
+
+export const EVENT_KIND_LABEL: Record<CaseEventKind, string> = {
+  request: "요청",
+  reply: "답변",
+  confirm: "확정",
+  issue: "확인 필요",
+  off_mail: "메일 밖",
+};
+
+export const OFF_MAIL_SOURCE_LABEL: Record<OffMailSource, string> = {
+  carrier_site: "선사 홈페이지",
+  phone: "전화",
+  messenger: "메신저 · 카톡",
+  other: "기타",
+};
+
 export const ROLE_LABEL: Record<Role, string> = {
   staff: "실무자",
   lead: "팀장",
   ceo: "대표",
 };
+
+export const NO_CODE_LABEL = "번호 없음";
