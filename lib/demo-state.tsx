@@ -37,6 +37,11 @@ interface DemoState {
   saveOffMail: (info: Omit<OffMailInfo, "id" | "createdAt"> & { id?: string; createdAt?: string }) => void;
 
   localCorrections: LocalCorrection[];
+  /** 값 수정 등 사람이 고친 내용을 수정 이력에 남김 */
+  addCorrection: (c: Omit<LocalCorrection, "id" | "correctedAt">) => void;
+  /** 원문 보기에서 고친 추출 값 (itemId → 새 값) */
+  editedValues: Record<string, string>;
+  editValue: (itemId: string, value: string, correction: Omit<LocalCorrection, "id" | "correctedAt">) => void;
 }
 
 const Ctx = createContext<DemoState | null>(null);
@@ -65,6 +70,15 @@ export function DemoStateProvider({
   const pushCorrection = useCallback((c: Omit<LocalCorrection, "id" | "correctedAt">) => {
     setLocalCorrections((prev) => [{ ...c, id: `local-${Date.now()}`, correctedAt: demoNow() }, ...prev]);
   }, []);
+
+  const [editedValues, setEditedValues] = useState<Record<string, string>>({});
+  const editValue = useCallback<DemoState["editValue"]>(
+    (itemId, v, correction) => {
+      setEditedValues((prev) => ({ ...prev, [itemId]: v }));
+      pushCorrection(correction);
+    },
+    [pushCorrection],
+  );
 
   const resolveReview = useCallback<DemoState["resolveReview"]>(
     (id, decision, correction) => {
@@ -107,6 +121,9 @@ export function DemoStateProvider({
       savedOffMail,
       saveOffMail,
       localCorrections,
+      addCorrection: pushCorrection,
+      editedValues,
+      editValue,
     };
   }, [
     initialOpenReviews,
@@ -119,6 +136,9 @@ export function DemoStateProvider({
     savedOffMail,
     saveOffMail,
     localCorrections,
+    pushCorrection,
+    editedValues,
+    editValue,
   ]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
