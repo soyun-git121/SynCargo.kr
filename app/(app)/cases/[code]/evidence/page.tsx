@@ -10,7 +10,7 @@ import { getCaseEvidence, getCurrentUser } from "@/lib/data";
 import { formatDateTime, formatMD } from "@/lib/date";
 import { NO_CODE_LABEL } from "@/lib/labels";
 import { caseHref, evidenceHref, reviewHref } from "@/lib/links";
-import { EditedValueNote, ValueEditButton } from "./value-edit";
+import { EditedValueNote, ValueEditButton } from "@/components/app/value-edit";
 
 /** W-07 원문 보기: 추출된 항목 ↔ 근거 문장이 강조된 원문 메일 */
 export default async function EvidencePage({

@@ -1,5 +1,6 @@
 import type {
   CaseEventKind,
+  ExtractedField,
   CaseKind,
   CaseStage,
   CaseStatus,
@@ -67,3 +68,15 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export const NO_CODE_LABEL = "번호 없음";
+
+export const EXTRACTED_FIELD_LABEL: Record<ExtractedField, string> = {
+  etd: "선적일",
+  eta: "도착일",
+  doc_cutoff: "서류 마감",
+  invoice_amount: "인보이스 금액",
+  booking: "부킹",
+  bl_type: "B/L 발행 방식",
+  document: "서류",
+  billing: "청구",
+  other: "기타",
+};
