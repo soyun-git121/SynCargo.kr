@@ -32,6 +32,7 @@
   --color-logo: var(--logo);
   --color-ink-2: var(--ink-2);
   --color-placeholder: var(--placeholder);
+  --color-faint: var(--faint);
   --color-divider: var(--divider);
   --color-field-border: var(--field-border);
   --color-button-border: var(--button-border);
@@ -87,6 +88,7 @@
   --subtle: #f8f9fb;
   --ink-2: #3d434d;
   --placeholder: #6b7280;
+  --faint: #9aa1ad;
   --logo: #15181e;
 
   --card: #ffffff;
@@ -97,7 +99,7 @@
   --primary: #1e47c8;
   --primary-foreground: #ffffff;
   --brand-soft: #ebf0fd;
-  --brand-muted: #8fa6e6;
+  --brand-muted: #7f98e6;
   --avatar: #dce3f7;
 
   --secondary: #f1f3f6;

@@ -380,7 +380,7 @@ export const reviewItems: ReviewItem[] = [
     summary: "화주가 불확실함",
     reason: "화주 이름 없이 처음 보는 B/L 번호만 있어요",
     candidates: [
-      { shipperId: "s2", caseId: "c013", confidence: 0.52 },
+      { shipperId: "s2", caseId: "c013", confidence: 0.45 },
       { shipperId: "s6", caseId: null, confidence: 0.31 },
     ],
     extractedItemIds: [],

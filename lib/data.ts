@@ -4,7 +4,8 @@
  */
 import * as db from "./mock";
 import { daysUntil } from "./date";
-import { STATUS_RANK } from "./labels";
+import { STAGES, STATUS_RANK } from "./labels";
+import { evidenceHref } from "./links";
 import type {
   Attachment,
   Case,
@@ -73,7 +74,8 @@ export interface CaseEvidence {
 export interface ShipperSummary extends Shipper {
   ownerName: string;
   activeCaseCount: number;
-  needsCheckCount: number;
+  /** 확인 필요: 확인 필요 건 + 이 화주로 제안된 애매한 연결 + 확인 안 된 조건 변경 */
+  needsCheck: boolean;
 }
 
 export interface ShipperDetail {
@@ -83,8 +85,8 @@ export interface ShipperDetail {
   doneCaseCount: number;
   /** "지금 챙길 것" — 확인 필요·답변 대기 건 + 확인 필요 반복 조건 */
   attentionCount: number;
-  patterns: (ShipperPattern & { confirmedByName: string | null })[];
-  changes: ShipperChange[];
+  patterns: (ShipperPattern & { confirmedByName: string | null; evidenceHref: string | null })[];
+  changes: (ShipperChange & { evidenceHref: string | null })[];
   memoUpdatedByName: string | null;
 }
 
@@ -102,6 +104,7 @@ export interface ReviewItemDetail extends ReviewItem {
 
 export interface CorrectionLogDetail extends CorrectionLog {
   correctedByName: string;
+  evidenceHref: string | null;
 }
 
 /* ───────────── 내부 헬퍼 ───────────── */
@@ -143,6 +146,16 @@ function byDeadline(a: Case, b: Case): number {
 }
 
 const DOC_ORDER = ["B/L", "Invoice", "Packing List"];
+
+/** 메일 → 원문 보기(W-07) 링크. 그 메일에서 뽑은 항목이 있는 건으로 연결 */
+function evidenceHrefForMail(mailId: string | null): string | null {
+  if (!mailId) return null;
+  const item = db.extractedItems.find((x) => x.evidence.mailId === mailId);
+  if (!item) return null;
+  return evidenceHref(findCase(item.caseId)!, item.id);
+}
+
+const stageIndex = (c: Case) => STAGES.findIndex((s) => s.key === c.stage);
 
 /* ───────────── 사용자 · 회사 ───────────── */
 
@@ -243,11 +256,15 @@ export async function getCaseEvidence(idOrCode: string): Promise<CaseEvidence | 
 export async function getShippers(): Promise<ShipperSummary[]> {
   return db.shippers.map((s) => {
     const active = db.cases.filter((c) => c.shipperId === s.id && c.status !== "done");
+    const reviewSuggests = db.reviewItems.some(
+      (r) => r.status === "open" && r.candidates[0]?.shipperId === s.id && r.candidates[0].confidence >= 0.5,
+    );
+    const changeOpen = db.shipperChanges.some((ch) => ch.shipperId === s.id && ch.status === "needs_check");
     return {
       ...clone(s),
       ownerName: userName(s.ownerId) ?? "",
       activeCaseCount: active.length,
-      needsCheckCount: active.filter((c) => c.status === "needs_check").length,
+      needsCheck: active.some((c) => c.status === "needs_check") || reviewSuggests || changeOpen,
     };
   });
 }
@@ -258,7 +275,7 @@ export async function getShipper(id: string): Promise<ShipperDetail | null> {
   const all = db.cases.filter((c) => c.shipperId === id);
   const activeCases = all
     .filter((c) => c.status !== "done" && c.code)
-    .sort(byDeadline)
+    .sort((a, b) => stageIndex(a) - stageIndex(b))
     .map((c) => {
       const issue = db.caseEvents.find((e) => e.caseId === c.id && e.kind === "issue");
       return { ...summarize(c), issue: c.status === "needs_check" ? (issue?.title ?? null) : null };
@@ -266,7 +283,7 @@ export async function getShipper(id: string): Promise<ShipperDetail | null> {
   const patterns = db.shipperPatterns
     .filter((p) => p.shipperId === id)
     .sort((a, b) => (a.status === b.status ? byDesc(a.confirmedAt ?? "", b.confirmedAt ?? "") : a.status === "suggested" ? -1 : 1))
-    .map((p) => ({ ...clone(p), confirmedByName: userName(p.confirmedBy) }));
+    .map((p) => ({ ...clone(p), confirmedByName: userName(p.confirmedBy), evidenceHref: evidenceHrefForMail(p.evidenceMailId) }));
   const attentionCount =
     all.filter((c) => c.status === "needs_check" || c.status === "awaiting_reply").length +
     patterns.filter((p) => p.status === "suggested").length +
@@ -278,7 +295,9 @@ export async function getShipper(id: string): Promise<ShipperDetail | null> {
     doneCaseCount: all.filter((c) => c.status === "done").length,
     attentionCount,
     patterns,
-    changes: clone(db.shipperChanges.filter((ch) => ch.shipperId === id)).sort((a, b) => byDesc(a.at, b.at)),
+    changes: clone(db.shipperChanges.filter((ch) => ch.shipperId === id))
+      .sort((a, b) => byDesc(a.at, b.at))
+      .map((ch) => ({ ...ch, evidenceHref: evidenceHrefForMail(ch.mailId) })),
     memoUpdatedByName: userName(shipper.memoUpdatedBy),
   };
 }
@@ -306,13 +325,32 @@ export async function getOpenReviews(): Promise<{ id: string; type: ReviewItem["
 
 export async function getCorrectionLogs(): Promise<CorrectionLogDetail[]> {
   return db.correctionLogs
-    .map((l) => ({ ...clone(l), correctedByName: userName(l.correctedBy) ?? "" }))
+    .map((l) => ({ ...clone(l), correctedByName: userName(l.correctedBy) ?? "", evidenceHref: evidenceHrefForMail(l.mailId) }))
     .sort((a, b) => byDesc(a.correctedAt, b.correctedAt));
 }
 
-/** 검토함 "기존 건에 연결" 선택지 */
-export async function getCaseOptions(): Promise<CaseSummary[]> {
-  return db.cases.filter((c) => c.status !== "done").sort(byDeadline).map(summarize);
+/** 검토함 연결 선택지: 화주 목록 + 화주별 건 (진행 중 먼저, 최근 완료 건 일부) */
+export async function getLinkOptions(): Promise<{
+  shippers: { id: string; name: string }[];
+  cases: { id: string; code: string | null; shipperId: string; label: string; done: boolean }[];
+}> {
+  const active = db.cases.filter((c) => c.status !== "done").sort(byDeadline);
+  const done = db.cases.filter((c) => c.status === "done").sort((a, b) => byDesc(a.closedAt ?? "", b.closedAt ?? ""));
+  return {
+    shippers: db.shippers.map((s) => ({ id: s.id, name: s.name })),
+    cases: [...active, ...done].map((c) => ({
+      id: c.id,
+      code: c.code,
+      shipperId: c.shipperId,
+      label: `${c.code ?? "번호 없음"} · ${c.route}${c.status === "done" ? " (완료)" : ""}`,
+      done: c.status === "done",
+    })),
+  };
+}
+
+/** 메일 → 원문 보기 링크 (검토함에서 원문 전체 보기용) */
+export async function getEvidenceHrefForMail(mailId: string): Promise<string | null> {
+  return evidenceHrefForMail(mailId);
 }
 
 /* ───────────── 검색 (TopBar) ───────────── */

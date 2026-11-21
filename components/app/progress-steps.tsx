@@ -25,7 +25,7 @@ export function ProgressSteps({
   const current = done ? STAGES.length : STAGES.findIndex((s) => s.key === stage);
 
   return (
-    <ol className={cn("flex w-full items-start", size === "md" ? "gap-1" : "gap-[3px]", className)}>
+    <ol className={cn("flex w-full items-start gap-1", className)}>
       {STAGES.map((s, i) => {
         const past = i < current;
         const now = i === current;
@@ -42,10 +42,10 @@ export function ProgressSteps({
         if (size === "sm") {
           return (
             <li key={s.key} className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <span className={cn("h-1 w-full rounded-full", barColor)} />
+              <span className={cn("h-1.5 w-full rounded-[3px]", barColor)} />
               <span
                 className={cn(
-                  "text-[11px] leading-none",
+                  "text-xs",
                   now ? (alert ? "font-bold text-danger" : "font-bold text-foreground") : "text-muted-foreground",
                 )}
               >

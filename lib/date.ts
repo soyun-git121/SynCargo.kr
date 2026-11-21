@@ -27,6 +27,11 @@ export function formatMD(date: string): string {
   return `${m}/${d}`;
 }
 
+/** "11/09" (두 자리) */
+export function formatMMDD(date: string): string {
+  return `${date.slice(5, 7)}/${date.slice(8, 10)}`;
+}
+
 function weekday(date: string): string {
   return WEEKDAYS[new Date(toUTC(date)).getUTCDay()];
 }
