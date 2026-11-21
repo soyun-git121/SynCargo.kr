@@ -32,8 +32,9 @@ interface DemoState {
   confirmedPatternIds: string[];
   confirmPattern: (patternId: string, correction: Omit<LocalCorrection, "id" | "correctedAt">) => void;
 
-  addedOffMail: OffMailInfo[];
-  addOffMail: (info: Omit<OffMailInfo, "id" | "createdAt">) => void;
+  /** 이번 세션에서 입력·수정한 메일 밖 정보 (id 기준으로 서버 값을 덮어씀) */
+  savedOffMail: Record<string, OffMailInfo>;
+  saveOffMail: (info: Omit<OffMailInfo, "id" | "createdAt"> & { id?: string; createdAt?: string }) => void;
 
   localCorrections: LocalCorrection[];
 }
@@ -58,7 +59,7 @@ export function DemoStateProvider({
   const [reviewDecisions, setReviewDecisions] = useState<Record<string, ReviewDecision>>({});
   const [shipperMemos, setShipperMemos] = useState<DemoState["shipperMemos"]>({});
   const [confirmedPatternIds, setConfirmedPatternIds] = useState<string[]>([]);
-  const [addedOffMail, setAddedOffMail] = useState<OffMailInfo[]>([]);
+  const [savedOffMail, setSavedOffMail] = useState<Record<string, OffMailInfo>>({});
   const [localCorrections, setLocalCorrections] = useState<LocalCorrection[]>([]);
 
   const pushCorrection = useCallback((c: Omit<LocalCorrection, "id" | "correctedAt">) => {
@@ -85,8 +86,9 @@ export function DemoStateProvider({
     [pushCorrection],
   );
 
-  const addOffMail = useCallback((info: Omit<OffMailInfo, "id" | "createdAt">) => {
-    setAddedOffMail((prev) => [{ ...info, id: `local-o-${Date.now()}`, createdAt: demoNow() }, ...prev]);
+  const saveOffMail = useCallback<DemoState["saveOffMail"]>((info) => {
+    const id = info.id ?? `local-o-${Date.now()}`;
+    setSavedOffMail((prev) => ({ ...prev, [id]: { ...info, id, createdAt: info.createdAt ?? demoNow() } }));
   }, []);
 
   const value = useMemo<DemoState>(() => {
@@ -102,8 +104,8 @@ export function DemoStateProvider({
       saveShipperMemo,
       confirmedPatternIds,
       confirmPattern,
-      addedOffMail,
-      addOffMail,
+      savedOffMail,
+      saveOffMail,
       localCorrections,
     };
   }, [
@@ -114,8 +116,8 @@ export function DemoStateProvider({
     saveShipperMemo,
     confirmedPatternIds,
     confirmPattern,
-    addedOffMail,
-    addOffMail,
+    savedOffMail,
+    saveOffMail,
     localCorrections,
   ]);
 

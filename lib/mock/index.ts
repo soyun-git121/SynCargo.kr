@@ -315,7 +315,7 @@ export const extractedItems: ExtractedItem[] = [
 /* ───────────── 메일 밖 정보 ───────────── */
 
 export const offMailInfos: OffMailInfo[] = [
-  { id: "o1", caseId: "c014", field: "선사 서류 마감", value: "11/18 17시", source: "carrier_site", memo: "", confirmedAt: "2026-11-15T14:30:00+09:00", createdBy: "u1", createdAt: "2026-11-15T14:32:00+09:00" },
+  { id: "o1", caseId: "c014", field: "선사 서류 마감", value: "11/18 17시", source: "carrier_site", memo: "", confirmedAt: "2026-11-15T14:30:00+09:00", createdBy: "u1", createdAt: "2026-11-15T17:20:00+09:00" },
   { id: "o2", caseId: "c014", field: "도착지 창고", value: "변경 예정", source: "phone", memo: "박과장 통화 — 롱비치 창고 바뀔 수 있음, 확정되면 메일 준다고 함", confirmedAt: "2026-11-14T11:00:00+09:00", createdBy: "u1", createdAt: "2026-11-14T11:05:00+09:00" },
 ];
 
@@ -339,7 +339,7 @@ export const caseEvents: CaseEvent[] = [
   event("e03", "c014", "2026-11-14T10:30:00+09:00", "confirm", "11/20 선적으로 확정", "김대리", { mailId: "m03", extractedItemId: "x01" }),
   event("e04", "c014", "2026-11-15T16:41:00+09:00", "issue", "인보이스 금액이 메일과 첨부에서 다름", "자동 발견", { mailId: "m04", extractedItemId: "x04", reviewItemId: "r1" }),
   event("e05", "c014", "2026-11-15T17:05:00+09:00", "request", "패킹리스트 수정본 요청", "김대리", { mailId: "m05", extractedItemId: "x05" }),
-  event("e06", "c014", "2026-11-15T14:32:00+09:00", "off_mail", "선사 서류 마감 11/18 17시", "선사 홈페이지 · 직접 입력", { offMailInfoId: "o1" }),
+  event("e06", "c014", "2026-11-15T17:20:00+09:00", "off_mail", "선사 서류 마감 11/18 17시", "선사 홈페이지 · 직접 입력", { offMailInfoId: "o1" }),
   // 나머지 건
   event("e10", "c009", "2026-11-16T08:10:00+09:00", "confirm", "부산 출항 완료 · 11/25 도착 예정", "선사", { mailId: "m07", extractedItemId: "x07" }),
   event("e20", "c031", "2026-11-13T14:00:00+09:00", "request", "11/20까지 청구서 요청", "A전자 재무팀", { mailId: "m08", extractedItemId: "x08" }),
