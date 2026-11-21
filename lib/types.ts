@@ -47,6 +47,10 @@ export interface MailboxConnection {
   syncFrom: DateString;
   folders: string[];
   mailCount: number;
+  /** 마지막 동기화에서 실패한 메일 수 */
+  lastSyncFailedCount: number;
+  /** 연결 순서 3단계(환경 확인 → 연결 방식 → 읽을 범위) 중 끝낸 단계 수 */
+  setupStepsDone: 0 | 1 | 2 | 3;
 }
 
 /** handovers: 인계 (이번 데모는 홈 배너 표시만) */

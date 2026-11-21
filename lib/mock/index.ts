@@ -52,10 +52,12 @@ export const mailboxConnections: MailboxConnection[] = [
     email: "kim@demo-forwarding.kr",
     status: "connected",
     connectedAt: "2026-08-16T10:00:00+09:00",
-    lastSyncAt: "2026-11-16T10:20:00+09:00",
+    lastSyncAt: "2026-11-16T09:12:00+09:00",
     syncFrom: "2026-08-16",
     folders: ["받은편지함", "보낸편지함"],
     mailCount: 1284,
+    lastSyncFailedCount: 0,
+    setupStepsDone: 2,
   },
 ];
 
