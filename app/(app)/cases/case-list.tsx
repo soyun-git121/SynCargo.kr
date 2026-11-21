@@ -14,15 +14,25 @@ import { CASE_KIND_LABEL } from "@/lib/labels";
 import { caseHref } from "@/lib/links";
 import type { CaseStatus } from "@/lib/types";
 
-type Tab = "all" | CaseStatus;
+export type Tab = "all" | CaseStatus;
 type Sort = "deadline" | "recent";
 
 const TAB_TONE = { all: "blue", in_progress: "gray", needs_check: "red", awaiting_reply: "yellow" } as const;
 
-export function CaseList({ cases, shippers }: { cases: CaseSummary[]; shippers: { id: string; name: string }[] }) {
+export function CaseList({
+  cases,
+  shippers,
+  initialTab = "all",
+  initialShipperId = "all",
+}: {
+  cases: CaseSummary[];
+  shippers: { id: string; name: string }[];
+  initialTab?: Tab;
+  initialShipperId?: string;
+}) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("all");
-  const [shipperId, setShipperId] = useState("all");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [shipperId, setShipperId] = useState(initialShipperId);
   const [includeNoBl, setIncludeNoBl] = useState(true);
   const [sort, setSort] = useState<Sort>("deadline");
 

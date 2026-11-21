@@ -30,6 +30,14 @@ interface DemoState {
   saveShipperMemo: (shipperId: string, text: string) => void;
 
   confirmedPatternIds: string[];
+  /** 반복 조건 문구 수정 (id → 새 문구) */
+  patternTexts: Record<string, string>;
+  /** 직접 추가한 반복 조건 */
+  addedPatterns: { id: string; shipperId: string; text: string; createdAt: string }[];
+  savePattern: (
+    p: { id?: string; shipperId: string; text: string },
+    correction: Omit<LocalCorrection, "id" | "correctedAt">,
+  ) => void;
   confirmPattern: (patternId: string, correction: Omit<LocalCorrection, "id" | "correctedAt">) => void;
 
   /** 이번 세션에서 입력·수정한 메일 밖 정보 (id 기준으로 서버 값을 덮어씀) */
@@ -92,6 +100,22 @@ export function DemoStateProvider({
     setShipperMemos((prev) => ({ ...prev, [shipperId]: { text, savedAt: demoNow() } }));
   }, []);
 
+  const [patternTexts, setPatternTexts] = useState<Record<string, string>>({});
+  const [addedPatterns, setAddedPatterns] = useState<DemoState["addedPatterns"]>([]);
+  const savePattern = useCallback<DemoState["savePattern"]>(
+    (p, correction) => {
+      if (p.id) {
+        const id = p.id;
+        setPatternTexts((prev) => ({ ...prev, [id]: p.text }));
+        setConfirmedPatternIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      } else {
+        setAddedPatterns((prev) => [...prev, { id: `local-p-${Date.now()}`, shipperId: p.shipperId, text: p.text, createdAt: demoNow() }]);
+      }
+      pushCorrection(correction);
+    },
+    [pushCorrection],
+  );
+
   const confirmPattern = useCallback<DemoState["confirmPattern"]>(
     (patternId, correction) => {
       setConfirmedPatternIds((prev) => (prev.includes(patternId) ? prev : [...prev, patternId]));
@@ -118,6 +142,9 @@ export function DemoStateProvider({
       saveShipperMemo,
       confirmedPatternIds,
       confirmPattern,
+      patternTexts,
+      addedPatterns,
+      savePattern,
       savedOffMail,
       saveOffMail,
       localCorrections,
@@ -133,6 +160,9 @@ export function DemoStateProvider({
     saveShipperMemo,
     confirmedPatternIds,
     confirmPattern,
+    patternTexts,
+    addedPatterns,
+    savePattern,
     savedOffMail,
     saveOffMail,
     localCorrections,
