@@ -1,0 +1,16 @@
+{
+  "name": "syncargo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @syncargo/frontend",
+    "build": "npm run build -w @syncargo/frontend",
+    "start": "npm run start -w @syncargo/frontend",
+    "lint": "npm run lint -w @syncargo/frontend",
+    "typecheck": "npm run typecheck --workspaces"
+  }
+}

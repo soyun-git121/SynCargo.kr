@@ -1,0 +1,16 @@
+{
+  "name": "@syncargo/backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SynCargo 데이터·도메인 계층 (지금은 mock, 나중에 Supabase·Microsoft Graph)",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}
