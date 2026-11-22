@@ -5,16 +5,14 @@ import { useState } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/app/card";
-import { CaseCode } from "@/components/app/case-code";
-import { DdayBadge } from "@/components/app/dday-badge";
-import { ProgressSteps } from "@/components/app/progress-steps";
-import { Pill, StatusPill } from "@/components/app/status-pill";
+import { ActiveCaseCard } from "@/components/app/active-case-card";
+import { Pill } from "@/components/app/status-pill";
 import { TextEditDialog } from "@/components/app/text-edit-dialog";
 import type { ShipperDetail } from "@syncargo/backend/data";
 import { demoNow, useDemoState } from "@/lib/demo-state";
-import { formatMD, formatMDW, formatMMDD } from "@/lib/date";
+import { formatMD, formatMMDD } from "@/lib/date";
 import { TRADE_TYPE_LABEL } from "@/lib/labels";
-import { caseHref, evidenceRefHref } from "@/lib/links";
+import { caseHref, casesHref, evidenceRefHref, handoverNewHref, reviewHref } from "@/lib/links";
 
 type PatternRow = {
   id: string;
@@ -26,12 +24,25 @@ type PatternRow = {
 };
 
 /** W-03 화주 카드 */
-export function ShipperView({ detail, userName }: { detail: ShipperDetail; userName: string }) {
+export function ShipperView({
+  detail,
+  userName,
+  focusCheck = false,
+}: {
+  detail: ShipperDetail;
+  userName: string;
+  /** 화주 목록의 '확인 필요' 배지로 들어옴 → 확인 항목을 맨 위에 펼침 */
+  focusCheck?: boolean;
+}) {
   const { shipper, owner, activeCases, doneCaseCount, changes } = detail;
   const demo = useDemoState();
+  const fromShipper = { kind: "shipper", id: shipper.id } as const;
   const savedMemo = demo.shipperMemos[shipper.id];
   const [memo, setMemo] = useState(savedMemo?.text ?? shipper.memo);
   const [dialog, setDialog] = useState<{ open: boolean; pattern: PatternRow | null }>({ open: false, pattern: null });
+  const [changeDialog, setChangeDialog] = useState<{ open: boolean; change: Change | null }>({ open: false, change: null });
+  const [checkOpen, setCheckOpen] = useState(focusCheck);
+  const [showAllChanges, setShowAllChanges] = useState(false);
 
   const memoMeta = savedMemo
     ? `${formatMD(savedMemo.savedAt)} · ${userName}`
@@ -55,7 +66,7 @@ export function ShipperView({ detail, userName }: { detail: ShipperDetail; userN
           : confirmedNow
             ? `${formatMD(demoNow())} · ${userName}`
             : `${formatMD(p.confirmedAt!)} · ${p.confirmedByName}`,
-        evidenceHref: evidenceRefHref(p.evidence),
+        evidenceHref: evidenceRefHref(p.evidence, fromShipper),
       };
     }),
     ...demo.addedPatterns
@@ -70,10 +81,32 @@ export function ShipperView({ detail, userName }: { detail: ShipperDetail; userN
       })),
   ].sort((a, b) => Number(b.suggested) - Number(a.suggested));
 
-  const resolvedSuggestions = detail.patterns.filter(
-    (p) => p.status === "suggested" && demo.confirmedPatternIds.includes(p.id),
-  ).length;
+  const resolvedSuggestions =
+    detail.patterns.filter((p) => p.status === "suggested" && demo.confirmedPatternIds.includes(p.id)).length +
+    changes.filter((ch) => ch.status === "needs_check" && demo.confirmedChangeIds.includes(ch.id)).length;
   const attention = detail.attentionCount - resolvedSuggestions;
+
+  const changeOpen = (ch: Change) => ch.status === "needs_check" && !demo.confirmedChangeIds.includes(ch.id);
+  const changeAfterText = (ch: Change) => demo.changeAfter[ch.id] ?? ch.after;
+  const confirmChange = (ch: Change, after: string | null) =>
+    demo.confirmChange(ch.id, after, {
+      kind: "value",
+      label: after !== null ? `변경 수정: ${ch.title}` : `변경 확정: ${ch.title}`,
+      before: ch.before,
+      after: after ?? ch.after,
+      targetLabel: shipper.name,
+      mailId: ch.mailId,
+      correctedByName: userName,
+    });
+
+  // 확인할 것: 확인 필요 반복 조건 + 확정 안 된 변경 + 확인 필요 건
+  const checkPatterns = patterns.filter((p) => p.suggested);
+  const checkChanges = changes.filter(changeOpen);
+  const checkCases = activeCases.filter(
+    (c) => c.status === "needs_check" && c.issue && !(c.reviewItemId && demo.reviewDecisions[c.reviewItemId]),
+  );
+  const checkCount = checkPatterns.length + checkChanges.length + checkCases.length;
+  const visibleChanges = showAllChanges ? changes : changes.slice(0, 3);
 
   const confirm = (p: PatternRow) =>
     demo.confirmPattern(p.id, {
@@ -93,7 +126,7 @@ export function ShipperView({ detail, userName }: { detail: ShipperDetail; userN
           <div className="flex items-center justify-between">
             <h1 className="text-[30px] font-bold text-foreground">{shipper.name}</h1>
             <Button variant="outline" asChild>
-              <Link href="/handover">이 화주 인계</Link>
+              <Link href={handoverNewHref([shipper.id])}>이 화주 인계</Link>
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -144,6 +177,78 @@ export function ShipperView({ detail, userName }: { detail: ShipperDetail; userN
         </form>
       </Card>
 
+      {checkOpen && checkCount > 0 && (
+        <section className="flex flex-col gap-2.5 rounded-[14px] border-[1.5px] border-danger-strong bg-card p-4">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-foreground">{shipper.name}에서 확인할 것</h2>
+              <Pill tone="red">{checkCount}건</Pill>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-muted-foreground">화주 목록의 ‘확인 필요’에서 들어와 먼저 펼쳤어요</span>
+              <button type="button" onClick={() => setCheckOpen(false)} className="font-semibold text-primary hover:underline">
+                접기
+              </button>
+            </div>
+          </div>
+          {checkPatterns.map((p) => (
+            <CheckRow
+              key={p.id}
+              tag="반복 조건"
+              title={p.text}
+              sub={p.note}
+              actions={
+                <>
+                  <Button onClick={() => confirm(p)}>맞아요</Button>
+                  <Button variant="outline" onClick={() => setDialog({ open: true, pattern: p })}>
+                    수정
+                  </Button>
+                  {p.evidenceHref && <EvidenceLink href={p.evidenceHref} />}
+                </>
+              }
+            />
+          ))}
+          {checkChanges.map((ch) => (
+            <CheckRow
+              key={ch.id}
+              tag="변경"
+              title={ch.before && ch.after ? `${ch.title.replace(/ 요청$/, "")} ${ch.before} → ${changeAfterText(ch)} 요청` : ch.title}
+              sub={`${formatMMDD(ch.at)} · 아직 확정 안 됨`}
+              actions={
+                <>
+                  <Button onClick={() => confirmChange(ch, null)}>확정</Button>
+                  <Button variant="outline" onClick={() => setChangeDialog({ open: true, change: ch })}>
+                    수정
+                  </Button>
+                  {ch.evidence && <EvidenceLink href={evidenceRefHref(ch.evidence, fromShipper)!} />}
+                </>
+              }
+            />
+          ))}
+          {checkCases.map((c) => (
+            <CheckRow
+              key={c.id}
+              tag={c.code ?? "번호 없음"}
+              mono
+              title={c.issue!}
+              sub={[
+                c.issueAt ? `${formatMMDD(c.issueAt)} 자동 발견` : null,
+                c.nextDeadline ? `${c.nextDeadline.label} ${formatMMDD(c.nextDeadline.date)}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              actions={
+                <Button variant="outline" asChild>
+                  <Link href={c.reviewItemId ? reviewHref("links", c.reviewItemId) : caseHref(c)}>
+                    {c.reviewItemId ? "검토함에서 확인 →" : "건 상세에서 확인 →"}
+                  </Link>
+                </Button>
+              }
+            />
+          ))}
+        </section>
+      )}
+
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -155,7 +260,7 @@ export function ShipperView({ detail, userName }: { detail: ShipperDetail; userN
             <Legend color="bg-brand-muted" label="지금 단계" />
             <Legend color="bg-border" label="남은 단계" />
             <Link
-              href={`/cases?tab=done&shipper=${encodeURIComponent(shipper.id)}`}
+              href={casesHref({ shipper: shipper.id, status: "done" })}
               className="text-sm font-semibold text-primary hover:underline"
             >
               지난 건 보기 · 완료 {doneCaseCount}건 →
@@ -166,43 +271,9 @@ export function ShipperView({ detail, userName }: { detail: ShipperDetail; userN
           <Card className="py-8 text-center text-sm text-muted-foreground">진행 중인 건이 없어요.</Card>
         ) : (
           <div className="grid grid-cols-3 gap-3.5">
-            {activeCases.map((c) => {
-              const alert = c.status === "needs_check";
-              return (
-                <Link
-                  key={c.id}
-                  href={caseHref(c)}
-                  className={cn(
-                    "flex flex-col gap-3.5 rounded-[14px] border bg-card p-[18px] transition-shadow hover:shadow-md",
-                    alert ? "border-danger-border" : "border-border",
-                  )}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex flex-col gap-1">
-                      <CaseCode code={c.code} className="text-[15px]" />
-                      <span className="text-[13px] text-muted-foreground">{c.stateSummary}</span>
-                    </div>
-                    <StatusPill status={c.status} />
-                  </div>
-                  <ProgressSteps size="sm" stage={c.stage} alert={alert} />
-                  {c.nextDeadline && (
-                    <div className="flex items-center justify-between border-t border-divider pt-3">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs text-muted-foreground">다음 기한</span>
-                        <span className="text-sm font-semibold text-foreground">
-                          {formatMDW(c.nextDeadline.date)} {c.nextDeadline.label}
-                          {c.stage === "arrival" && c.nextDeadline.label === "도착" ? " 예정" : ""}
-                        </span>
-                      </div>
-                      <DdayBadge date={c.nextDeadline.date} variant="text" />
-                    </div>
-                  )}
-                  {c.issue && (
-                    <p className="rounded-lg bg-danger-soft px-3 py-2.5 text-[13px] leading-normal font-medium text-danger-ink">{c.issue}</p>
-                  )}
-                </Link>
-              );
-            })}
+            {activeCases.map((c) => (
+              <ActiveCaseCard key={c.id} c={c} href={caseHref(c)} />
+            ))}
           </div>
         )}
       </section>
@@ -264,11 +335,25 @@ export function ShipperView({ detail, userName }: { detail: ShipperDetail; userN
         </Card>
 
         <Card className="flex w-[440px] shrink-0 flex-col gap-1">
-          <CardHeader title="변경 이력" description="조건이 바뀐 날짜와 근거" />
+          <CardHeader
+            title="변경 이력"
+            description="조건이 바뀐 날짜와 근거"
+            action={
+              changes.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllChanges((v) => !v)}
+                  className="text-sm font-semibold text-primary hover:underline"
+                >
+                  {showAllChanges ? "접기" : `전체 보기 · ${changes.length}건 →`}
+                </button>
+              )
+            }
+          />
           <ol className="mt-2 flex flex-col">
-            {changes.map((ch, i) => {
-              const last = i === changes.length - 1;
-              const open = ch.status === "needs_check";
+            {visibleChanges.map((ch, i) => {
+              const last = i === visibleChanges.length - 1;
+              const open = changeOpen(ch);
               return (
                 <li key={ch.id} className="flex gap-3.5">
                   <div className="flex w-3.5 shrink-0 flex-col items-center gap-1.5 pt-[5px]">
@@ -286,13 +371,13 @@ export function ShipperView({ detail, userName }: { detail: ShipperDetail; userN
                       <span className="flex items-center gap-2 text-sm">
                         <span className="text-muted-foreground line-through">{ch.before}</span>
                         <span className="text-faint">→</span>
-                        <span className="font-bold text-foreground">{ch.after}</span>
+                        <span className="font-bold text-foreground">{changeAfterText(ch)}</span>
                       </span>
                     )}
                     <div className="flex items-center justify-between text-[13px]">
-                      <span className="text-muted-foreground">{ch.sourceLabel}</span>
+                      <span className="text-muted-foreground">{open ? "아직 확정 안 됨" : ch.sourceLabel}</span>
                       {ch.evidence && (
-                        <Link href={evidenceRefHref(ch.evidence)!} className="font-semibold text-primary hover:underline">
+                        <Link href={evidenceRefHref(ch.evidence, fromShipper)!} className="font-semibold text-primary hover:underline">
                           근거 ↗
                         </Link>
                       )}
@@ -304,6 +389,16 @@ export function ShipperView({ detail, userName }: { detail: ShipperDetail; userN
           </ol>
         </Card>
       </div>
+
+      <TextEditDialog
+        open={changeDialog.open}
+        onOpenChange={(open) => setChangeDialog((d) => ({ ...d, open }))}
+        title={changeDialog.change ? `변경 수정 · ${changeDialog.change.title}` : "변경 수정"}
+        description={`${shipper.name} · 바뀐 값을 고치면 확정되고 수정 이력에 남아요`}
+        initial={changeDialog.change ? (changeAfterText(changeDialog.change) ?? "") : ""}
+        placeholder="예: 45일"
+        onSave={(text) => changeDialog.change && confirmChange(changeDialog.change, text)}
+      />
 
       <TextEditDialog
         open={dialog.open}
@@ -345,6 +440,45 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: "red
         <span className="text-sm font-semibold">건</span>
       </span>
     </div>
+  );
+}
+
+type Change = ShipperDetail["changes"][number];
+
+function CheckRow({
+  tag,
+  mono,
+  title,
+  sub,
+  actions,
+}: {
+  tag: string;
+  mono?: boolean;
+  title: string;
+  sub?: string | null;
+  actions: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-[10px] border border-danger-border bg-danger-row px-3.5 py-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span className={cn("shrink-0 rounded-full bg-stat px-2.5 py-1 text-[11px] font-semibold text-ink-2", mono && "font-mono")}>
+            {tag}
+          </span>
+          <span className="truncate text-[15px] font-semibold text-foreground">{title}</span>
+        </div>
+        {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{actions}</div>
+    </div>
+  );
+}
+
+function EvidenceLink({ href }: { href: string }) {
+  return (
+    <Link href={href} className="text-[13px] font-semibold text-primary hover:underline">
+      근거 ↗
+    </Link>
   );
 }
 

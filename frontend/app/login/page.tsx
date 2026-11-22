@@ -27,22 +27,37 @@ export default function LoginPage() {
           <p className="text-[13px] font-medium text-muted-foreground">로그인하면 내 역할에 맞는 범위로 들어갑니다</p>
           <div className="flex gap-2">
             {[
-              ["실무자", "내 화주"],
-              ["팀장", "팀 전체"],
-              ["대표", "회사 전체"],
-            ].map(([role, scope]) => (
-              <div key={role} className="flex flex-1 flex-col items-center gap-0.5 rounded-[10px] border border-border bg-subtle p-3">
-                <span className="text-sm font-bold text-foreground">{role}</span>
-                <span className="text-xs text-muted-foreground">{scope}</span>
-              </div>
-            ))}
+              ["실무자", "내 화주", "/home"],
+              ["팀장", "팀 전체", null],
+              ["대표", "회사 전체", "/owner"],
+            ].map(([role, scope, href]) =>
+              href ? (
+                <Link
+                  key={role}
+                  href={href}
+                  className="flex flex-1 flex-col items-center gap-0.5 rounded-[10px] border border-border bg-subtle p-3 transition-colors hover:border-primary hover:bg-brand-soft"
+                >
+                  <span className="text-sm font-bold text-foreground">{role}</span>
+                  <span className="text-xs text-muted-foreground">{scope}</span>
+                </Link>
+              ) : (
+                <div key={role} className="flex flex-1 flex-col items-center gap-0.5 rounded-[10px] border border-border bg-subtle p-3">
+                  <span className="text-sm font-bold text-foreground">{role}</span>
+                  <span className="text-xs text-muted-foreground">{scope}</span>
+                </div>
+              ),
+            )}
           </div>
         </div>
 
         <p className="w-full rounded-lg bg-subtle px-3 py-2.5 text-[13px] leading-normal font-medium text-ink-2">
           메일은 읽기만 합니다. 보내거나 지우지 않습니다.
         </p>
-        <p className="-mt-3 text-xs text-faint">데모 버전 · 실제 로그인 없이 김대리(실무자) 화면으로 들어갑니다</p>
+        <p className="-mt-3 text-center text-xs text-faint">
+          데모 버전 · 실제 로그인 없이 김대리(실무자) 화면으로 들어갑니다
+          <br />
+          위 역할 카드에서 ‘대표’를 누르면 정대표 화면으로 들어가요
+        </p>
       </div>
     </main>
   );

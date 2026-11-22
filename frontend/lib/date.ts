@@ -53,3 +53,13 @@ export function formatDateTime(dt: string): string {
 export function formatRelative(dt: string, today: string = TODAY): string {
   return dt.slice(0, 10) === today ? dt.slice(11, 16) : formatMD(dt);
 }
+
+/** 기간 "11/23 ~ 11/27" (같은 달이면 "11/23~27"은 compact) */
+export function formatPeriod(start: string, end: string | null, compact = false): string {
+  if (!end) return `${formatMD(start)}~`;
+  if (compact) {
+    const sameMonth = start.slice(5, 7) === end.slice(5, 7);
+    return `${formatMMDD(start)}~${sameMonth ? end.slice(8, 10) : formatMMDD(end)}`;
+  }
+  return `${formatMD(start)} ~ ${formatMD(end)}`;
+}

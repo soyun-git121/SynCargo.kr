@@ -9,7 +9,7 @@ import { Pill } from "@/components/app/status-pill";
 import { getCaseEvidence, getCurrentUser } from "@syncargo/backend/data";
 import { formatDateTime, formatMD } from "@/lib/date";
 import { NO_CODE_LABEL } from "@/lib/labels";
-import { caseHref, evidenceHref, reviewHref } from "@/lib/links";
+import { caseHref, evidenceHref, parseEvidenceFrom, reviewHref, shipperHref } from "@/lib/links";
 import { EditedValueNote, ValueEditButton } from "@/components/app/value-edit";
 
 /** W-07 원문 보기: 추출된 항목 ↔ 근거 문장이 강조된 원문 메일 */
@@ -18,15 +18,23 @@ export default async function EvidencePage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ item?: string }>;
+  searchParams: Promise<{ item?: string; from?: string }>;
 }) {
-  const [{ code }, { item: itemParam }] = await Promise.all([params, searchParams]);
+  const [{ code }, { item: itemParam, from: fromParam }] = await Promise.all([params, searchParams]);
+  const from = parseEvidenceFrom(fromParam);
   const [data, user] = await Promise.all([getCaseEvidence(code), getCurrentUser()]);
   if (!data) notFound();
 
   const { case: c, items } = data;
   const selected = items.find((x) => x.id === itemParam) ?? items[0];
   const codeLabel = c.code ?? NO_CODE_LABEL;
+  // 어디서 왔는지 표시하고 그 화면으로 돌아간다 (화주 카드에서 왔으면 화주 카드로)
+  const back =
+    from.kind === "shipper"
+      ? { href: shipperHref(from.id), label: `${c.shipperName} 화주 카드` }
+      : from.kind === "review"
+        ? { href: "/review", label: "검토함" }
+        : { href: caseHref(c), label: "건 상세" };
 
   return (
     <Page
@@ -36,9 +44,12 @@ export default async function EvidencePage({
         { label: "원문 보기" },
       ]}
     >
-      <Link href={caseHref(c)} className="w-fit text-sm font-semibold text-primary hover:underline">
-        ← 건 상세로
-      </Link>
+      <div className="flex items-center gap-3">
+        <Button variant="outline" asChild>
+          <Link href={back.href}>← 돌아가기</Link>
+        </Button>
+        <p className="text-[13px] text-muted-foreground">{back.label}에서 왔어요 · 누르면 들어오기 전 화면으로 돌아가요</p>
+      </div>
 
       <div className="flex items-start gap-5">
         <Card className="flex w-[420px] shrink-0 flex-col gap-2">
@@ -49,7 +60,7 @@ export default async function EvidencePage({
             return (
               <Link
                 key={x.id}
-                href={evidenceHref(c, x.id)}
+                href={evidenceHref(c, x.id, from)}
                 scroll={false}
                 aria-current={on ? "true" : undefined}
                 className={cn(
@@ -67,7 +78,7 @@ export default async function EvidencePage({
                     <EditedValueNote itemId={x.id} />
                   </span>
                 </div>
-                {on ? <Pill tone="blue">보는 중</Pill> : <span className="text-[13px] font-semibold text-primary">보기</span>}
+                <span className="shrink-0 text-[13px] font-semibold text-primary">{on ? "보는 중" : "보기"}</span>
               </Link>
             );
           })}

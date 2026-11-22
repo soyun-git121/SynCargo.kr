@@ -1,16 +1,15 @@
 import { Sidebar } from "@/components/app/sidebar";
-import { getCurrentUser, getOpenReviews } from "@syncargo/backend/data";
-import { DemoStateProvider } from "@/lib/demo-state";
+import { getCurrentUser } from "@syncargo/backend/data";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [user, openReviews] = await Promise.all([getCurrentUser(), getOpenReviews()]);
+  const user = await getCurrentUser();
 
   return (
-    <DemoStateProvider initialOpenReviews={openReviews}>
+    <>
       <Sidebar user={user} />
       <div className="min-h-screen pl-60">
         <main className="mx-auto max-w-[1200px]">{children}</main>
       </div>
-    </DemoStateProvider>
+    </>
   );
 }

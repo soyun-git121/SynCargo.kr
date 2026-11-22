@@ -32,6 +32,10 @@ export interface User {
   role: Role;
   isAdmin: boolean; // 관리자 모드 접근 가능 여부
   email: string;
+  /** 사용 중 / 퇴사 예정 / 비활성화 (대표 R-11) */
+  status: "active" | "leaving" | "inactive";
+  /** 퇴사 예정일 */
+  leavingAt: DateString | null;
 }
 
 /** mailbox_connections: Microsoft Graph(Mail.Read 위임 권한) 연결 상태 */
@@ -53,14 +57,76 @@ export interface MailboxConnection {
   setupStepsDone: 0 | 1 | 2 | 3;
 }
 
-/** handovers: 인계 (이번 데모는 홈 배너 표시만) */
+export type HandoverReason = "vacation" | "reassign" | "resign";
+
+/** 승인 대기 → 승인 완료 → 진행 중(기간 안) → 완료 */
+export type HandoverStatus = "requested" | "approved" | "active" | "done";
+
+/** company_mailboxes: 회사가 읽기를 허용한 사서함 (W-15 · 대표 R-10) */
+export interface CompanyMailbox {
+  id: ID;
+  companyId: ID;
+  email: string;
+  label: string;
+  kind: "personal" | "shared";
+  /** personal이면 주인 */
+  ownerUserId: ID | null;
+  allowed: boolean;
+}
+
+/** company_settings: 회사 단위 읽기 범위 */
+export interface CompanyMailSettings {
+  companyId: ID;
+  /** 이 날짜 이후 메일만 읽음 */
+  syncFrom: DateString;
+  retentionYears: number;
+  /** 대표가 메일 원문까지 볼 수 있는지 (기본: 요약 + 근거 문장만, 담당자가 공유할 때만 원문) */
+  ceoMailAccess: "evidence_only" | "shared_only" | "full";
+}
+
+/** company_contract: 계약 · 사용량 (대표 R-12) */
+export interface CompanyContract {
+  companyId: ID;
+  plan: string;
+  seats: number;
+  teams: number;
+  nextBillingDate: DateString;
+  monthlyQuota: number;
+  usedThisMonth: number;
+}
+
+/** handovers: 인계 (W-08 대상 고르기 → W-09 미리보기 → 대표 승인 R-08) */
 export interface Handover {
   id: ID;
   fromUserId: ID;
-  toUserId: ID;
+  /** 담당자가 아직 없는 인계(퇴사 등)는 null → 대표가 R-09에서 지정 */
+  toUserId: ID | null;
   shipperIds: ID[];
-  status: "requested" | "approved";
+  caseIds: ID[];
+  reason: HandoverReason;
+  periodStart: DateString;
+  /** 담당 변경·퇴사는 끝나는 날 없음 */
+  periodEnd: DateString | null;
+  status: HandoverStatus;
+  /** 받는 사람이 연락할 사람 (대표 R-08 '확인 대상') */
+  contacts: string | null;
+  requestedAt: DateTimeString;
   approvedAt: DateTimeString | null;
+}
+
+/** handover_items: 인계 미결 사항 + '중요 사항 · 챙길 일' */
+export interface HandoverItem {
+  id: ID;
+  handoverId: ID;
+  shipperId: ID;
+  caseId: ID | null;
+  /** pending: 남은 미결 사항 / note: 중요 사항 · 챙길 일 */
+  kind: "pending" | "note";
+  title: string;
+  dueDate: DateString | null;
+  /** auto: 자동 정리 / manual: 사람이 추가 */
+  origin: "auto" | "manual";
+  done: boolean;
 }
 
 /* ───────────── 화주 ───────────── */
@@ -96,6 +162,8 @@ export interface ShipperPattern {
   /** 제안 상태일 때 이유 (예: "메일 1건에서만 보임") */
   note: string | null;
   evidenceMailId: ID | null;
+  /** 대표 화면용: 원문 대신 보여 줄 근거 문장 */
+  evidenceText: string | null;
   confirmedAt: DateTimeString | null;
   confirmedBy: ID | null;
 }
@@ -112,6 +180,12 @@ export interface ShipperChange {
   status: "confirmed" | "needs_check";
   mailId: ID | null;
   at: DateTimeString;
+  /** change: 조건 변경 / handover: 담당 변경(인계) / start: 거래 시작 (대표 R-04 화주 이력) */
+  kind: "change" | "handover" | "start";
+  /** 당시 담당 실무자 (인계 행은 null) */
+  ownerIdAtTime: ID | null;
+  /** 대표 화면용: 원문 대신 보여 줄 근거 문장 */
+  evidenceText: string | null;
 }
 
 /* ───────────── 업무 건 ───────────── */
@@ -146,10 +220,14 @@ export interface Case {
   bookingNo: string | null;
   /** 다음 기한 */
   nextDeadline: { label: string; date: DateString; detail: string | null } | null;
+  /** 지금 필요한 것 (건 상세 맨 위 2번 칸: 현재 상황 → 필요한 것 → 다음 행동) */
+  need: { title: string; note: string } | null;
   /** 다음 행동 (자동 정리, 사람이 고칠 수 있음) */
   nextAction: string | null;
   /** 가장 최근 메일에서 바뀐 내용 (홈 "오늘 움직인 건") */
   latestChange: { text: string; at: DateTimeString } | null;
+  /** 막혀 있는 건 (대표 R-05): 답변 대기 / 화주 승인 대기 / 확인 필요 + 멈춘 날 */
+  blocked: { kind: "reply" | "approval" | "check"; reason: string; since: DateString } | null;
   createdAt: DateTimeString;
   updatedAt: DateTimeString;
   closedAt: DateTimeString | null;

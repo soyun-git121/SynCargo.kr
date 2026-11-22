@@ -5,16 +5,16 @@ import { useState } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, ListItem } from "@/components/app/card";
-import { DdayBadge } from "@/components/app/dday-badge";
 import { ProgressSteps } from "@/components/app/progress-steps";
 import { StatusPill } from "@/components/app/status-pill";
 import { Timeline, type TimelineEntry } from "@/components/app/timeline";
 import type { CaseDetail } from "@syncargo/backend/data";
 import { useDemoState } from "@/lib/demo-state";
-import { daysUntil, formatMD, formatMDW } from "@/lib/date";
+import { daysUntil, ddayLabel, formatMD, formatMDW } from "@/lib/date";
 import { CASE_KIND_LABEL, NO_CODE_LABEL, OFF_MAIL_SOURCE_LABEL, STAGES, TRADE_TYPE_LABEL } from "@/lib/labels";
 import { evidenceHref, reviewHref, shipperHref } from "@/lib/links";
 import type { OffMailInfo } from "@syncargo/backend/types";
+import { FlowArrow, FlowTile } from "@/components/app/flow-tile";
 import { OffMailDialog } from "./off-mail-dialog";
 
 const offMailTitle = (o: OffMailInfo) => `${o.field} ${o.value}`.trim();
@@ -109,6 +109,18 @@ export function CaseDetailView({
               {NO_CODE_LABEL} <span className="text-muted-foreground">· {CASE_KIND_LABEL[c.kind]}</span>
             </h1>
           )}
+          {/* 마감일을 건 번호 옆으로 */}
+          {deadline && (
+            <span
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-semibold",
+                urgent ? "bg-danger-soft text-danger" : "bg-neutral-soft text-neutral",
+              )}
+            >
+              <span className="font-mono">{ddayLabel(deadline.date)}</span>
+              {formatMDW(deadline.date)} {deadline.label}
+            </span>
+          )}
           <Link href={shipperHref(c.shipperId)} className="text-base font-semibold text-primary hover:underline">
             {c.shipperName} ↗
           </Link>
@@ -122,32 +134,34 @@ export function CaseDetailView({
         </div>
       </div>
 
+      {/* 현재 상황 → 필요한 것 → 다음 행동 순서로 읽히게 */}
+      <div className="flex items-stretch gap-2">
+        <FlowTile no={1} label="현재 상황" value={c.stateSummary} sub={c.stateNote} />
+        <FlowArrow />
+        <FlowTile
+          no={2}
+          label="필요한 것"
+          value={c.need?.title ?? "지금 필요한 것 없음"}
+          sub={c.need?.note ?? "—"}
+          tone={c.status === "needs_check" ? "red" : "white"}
+        />
+        <FlowArrow />
+        <FlowTile
+          no={3}
+          label="다음 행동"
+          value={c.nextAction ?? "—"}
+          sub={[`담당 ${c.ownerName}`, deadline ? `${deadlineDetail(deadline)} 전` : null].filter(Boolean).join(" · ")}
+          tone="blue"
+        />
+      </div>
+
       <Card className="flex flex-col gap-[18px]">
         <CardHeader
           title="진행 단계"
           description={`${TRADE_TYPE_LABEL[c.tradeType]} · ${c.route} · 5단계 중 ${stageNo}단계`}
-          action={
-            deadline && (
-              <>
-                <span className="text-sm font-medium text-ink-2">{deadline.label}까지</span>
-                <DdayBadge date={deadline.date} />
-              </>
-            )
-          }
         />
         <ProgressSteps stage={c.stage} alert={c.status === "needs_check"} done={c.status === "done"} />
       </Card>
-
-      <div className="flex gap-3">
-        <SummaryTile label="현재 상태" value={c.stateSummary} sub={c.stateNote} />
-        <SummaryTile
-          label="다음 기한"
-          value={deadline ? `${formatMDW(deadline.date)} ${deadline.label}` : "없음"}
-          sub={deadline?.detail ?? "—"}
-          tone={urgent ? "red" : "white"}
-        />
-        <SummaryTile label="다음 행동" value={c.nextAction ?? "—"} sub="자동 정리 · 고칠 수 있어요" />
-      </div>
 
       <div className="flex items-start gap-5">
         <Card className="flex min-w-0 flex-1 flex-col gap-1">
@@ -219,28 +233,8 @@ export function CaseDetailView({
   );
 }
 
-function SummaryTile({
-  label,
-  value,
-  sub,
-  tone = "white",
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  tone?: "white" | "red";
-}) {
-  const red = tone === "red";
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-1 flex-col gap-1 rounded-xl border px-4 py-3.5",
-        red ? "border-danger-border bg-danger-soft" : "border-border bg-card",
-      )}
-    >
-      <p className={cn("text-xs font-medium", red ? "text-danger-ink" : "text-muted-foreground")}>{label}</p>
-      <p className={cn("truncate text-[17px] font-bold", red ? "text-danger" : "text-foreground")}>{value}</p>
-      <p className={cn("truncate text-xs", red ? "text-danger-ink" : "text-muted-foreground")}>{sub}</p>
-    </div>
-  );
+/** "11/18 17시 서류 마감" — detail에 시각이 있으면 붙인다 */
+function deadlineDetail(d: NonNullable<CaseDetail["case"]["nextDeadline"]>): string {
+  const hour = d.detail?.match(/(\d{1,2}시)/)?.[1];
+  return `${formatMD(d.date)}${hour ? ` ${hour}` : ""} ${d.label}`;
 }
