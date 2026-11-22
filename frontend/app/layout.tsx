@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ko" className={`${plexSans.variable} ${plexMono.variable}`}>
+    <html lang="ko" className={`${plexSans.variable} ${plexMono.variable}`} suppressHydrationWarning>
       <body className="antialiased">
         <TooltipProvider>{children}</TooltipProvider>
       </body>
