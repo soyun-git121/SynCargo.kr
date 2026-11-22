@@ -48,7 +48,7 @@ export function ShipperList({ shippers, userId }: { shippers: ShipperSummary[]; 
           onChange={(e) => setQ(e.target.value)}
           placeholder="화주 이름 검색"
           aria-label="화주 이름 검색"
-          className="h-10 w-[200px] rounded-lg border border-field-border bg-background px-3 text-sm outline-none placeholder:text-placeholder focus:border-primary"
+          className="h-10 w-[280px] rounded-lg border border-field-border bg-background px-3 text-sm outline-none placeholder:text-placeholder focus:border-primary"
         />
         <div className="flex h-10 items-center rounded-lg bg-stat p-1" role="radiogroup" aria-label="보기 범위">
           {(
@@ -77,7 +77,7 @@ export function ShipperList({ shippers, userId }: { shippers: ShipperSummary[]; 
           aria-label="거래 유형"
           value={trade}
           onChange={setTrade}
-          className="w-[150px]"
+          className="w-[170px]"
           options={[
             { value: "all", label: "거래 유형: 전체" },
             ...tradeTypes.map((t) => ({ value: t, label: TRADE_TYPE_LABEL[t] })),
@@ -89,7 +89,7 @@ export function ShipperList({ shippers, userId }: { shippers: ShipperSummary[]; 
             aria-label="정렬"
             value={sort}
             onChange={setSort}
-            className="w-[230px]"
+            className="w-[270px]"
             options={[
               { value: "attention", label: "확인 필요 먼저 · 최근 변경 순" },
               { value: "name", label: "이름 순" },
@@ -102,13 +102,13 @@ export function ShipperList({ shippers, userId }: { shippers: ShipperSummary[]; 
         <CardHeader title="화주 목록" count={rows.length} />
         <div role="table" className="flex flex-col">
           <div role="row" className="flex items-center gap-4 rounded-lg bg-subtle px-4 py-2.5 text-xs font-semibold text-muted-foreground">
-            <span className="w-[100px]">화주</span>
+            <span className="w-[150px]">화주</span>
             <span className="flex-1">거래 유형 · 주요 구간</span>
-            <span className="w-[60px]">담당</span>
-            <span className="w-[70px]">진행 중인 건</span>
-            <span className="w-[70px]">확인 필요</span>
-            <span className="w-[56px]">최근 변경</span>
-            <span className="w-3" />
+            <span className="w-[80px]">담당</span>
+            <span className="w-[100px]">진행 중인 건</span>
+            <span className="w-[100px]">확인 필요</span>
+            <span className="w-[90px]">최근 변경</span>
+            <span className="w-4" />
           </div>
           {rows.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">조건에 맞는 화주가 없어요.</p>}
           {rows.map((s) => (
@@ -118,18 +118,34 @@ export function ShipperList({ shippers, userId }: { shippers: ShipperSummary[]; 
               tabIndex={0}
               onClick={() => router.push(shipperHref(s.id))}
               onKeyDown={(e) => e.key === "Enter" && router.push(shipperHref(s.id))}
-              className="flex cursor-pointer items-center gap-4 border-b border-divider px-4 py-3 text-sm outline-none hover:bg-subtle focus-visible:bg-subtle"
+              className="flex cursor-pointer items-center gap-4 border-b border-divider px-4 py-3.5 text-sm outline-none hover:bg-subtle focus-visible:bg-subtle"
             >
-              <span className="w-[100px] font-semibold text-foreground">{s.name}</span>
-              <span className="flex flex-1 items-center gap-1.5">
+              <span className="w-[150px] font-semibold text-foreground">{s.name}</span>
+              <span className="flex flex-1 items-center gap-2">
                 <span className="rounded-md bg-stat px-2 py-[3px] text-xs font-medium text-ink-2">{TRADE_TYPE_LABEL[s.tradeType]}</span>
                 <span className="text-ink-2">{s.route}</span>
               </span>
-              <span className="w-[60px] text-ink-2">{s.ownerName}</span>
-              <span className="w-[70px] text-ink-2">{s.activeCaseCount}건</span>
-              <span className="w-[70px]">{s.needsCheck ? <Pill tone="red">확인 필요</Pill> : <span className="text-faint">—</span>}</span>
-              <span className="w-[56px] font-mono font-semibold text-foreground">{formatMMDD(s.lastChangedAt)}</span>
-              <span className="w-3 text-faint">›</span>
+              <span className="w-[80px] text-foreground">{s.ownerName}</span>
+              <span className="w-[100px] text-foreground">{s.activeCaseCount}건</span>
+              <span className="w-[100px]">
+                {s.needsCheck ? (
+                  // 배지를 누르면 화주 카드가 확인 항목을 펼친 상태로 열린다
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(shipperHref(s.id, { focus: "check" }));
+                    }}
+                    className="rounded-full hover:ring-2 hover:ring-danger-border"
+                  >
+                    <Pill tone="red">확인 필요</Pill>
+                  </button>
+                ) : (
+                  <span className="text-faint">—</span>
+                )}
+              </span>
+              <span className="w-[90px] font-mono font-medium text-foreground">{formatMMDD(s.lastChangedAt)}</span>
+              <span className="w-4 text-base text-faint">›</span>
             </div>
           ))}
         </div>

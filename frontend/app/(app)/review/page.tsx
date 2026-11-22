@@ -17,7 +17,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   ]);
 
   const evidenceHrefByMail: Record<string, string | null> = {};
-  await Promise.all(items.map(async (r) => (evidenceHrefByMail[r.mail.id] = evidenceRefHref(await getEvidenceRefForMail(r.mail.id)))));
+  await Promise.all(items.map(async (r) => (evidenceHrefByMail[r.mail.id] = evidenceRefHref(await getEvidenceRefForMail(r.mail.id), { kind: "review" }))));
 
   // ?item= 이 미분류 항목이면 탭도 맞춰 준다
   const itemType = items.find((r) => r.id === item)?.type;
@@ -33,7 +33,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         key={`${initialTab}-${item ?? ""}`}
         items={items}
         linkOptions={linkOptions}
-        logs={logs.map((l) => ({ ...l, evidenceHref: evidenceRefHref(l.evidence) }))}
+        logs={logs.map((l) => ({ ...l, evidenceHref: evidenceRefHref(l.evidence, { kind: "review" }) }))}
         users={users.map((u) => ({ id: u.id, name: u.name }))}
         userName={user.name}
         initialTab={initialTab}

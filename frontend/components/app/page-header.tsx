@@ -2,10 +2,21 @@ import { cn } from "cn";
 import { TopBar, type Crumb } from "./top-bar";
 
 /** 페이지 틀: 상단바 + 본문(좌우 32px, 위 24px, 아래 40px, 블록 간격 20px) */
-export function Page({ crumbs, children, className }: { crumbs: Crumb[]; children: React.ReactNode; className?: string }) {
+export function Page({
+  crumbs,
+  children,
+  className,
+  owner = false,
+}: {
+  crumbs: Crumb[];
+  children: React.ReactNode;
+  className?: string;
+  /** 대표 화면: 검색이 회사 전체 · 대표 화면으로 이동 */
+  owner?: boolean;
+}) {
   return (
     <>
-      <TopBar crumbs={crumbs} />
+      <TopBar crumbs={crumbs} owner={owner} />
       <div className={cn("flex flex-col gap-5 px-8 pt-6 pb-10", className)}>{children}</div>
     </>
   );

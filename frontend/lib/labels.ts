@@ -1,5 +1,7 @@
 import type {
   CaseEventKind,
+  HandoverReason,
+  HandoverStatus,
   ExtractedField,
   CaseKind,
   CaseStage,
@@ -74,3 +76,23 @@ export const EXTRACTED_FIELD_LABEL: Record<ExtractedField, string> = {
   billing: "청구",
   other: "기타",
 };
+
+export const HANDOVER_REASON_LABEL: Record<HandoverReason, string> = {
+  vacation: "휴가",
+  reassign: "담당 변경",
+  resign: "퇴사",
+};
+
+export const HANDOVER_STATUS_LABEL: Record<HandoverStatus, string> = {
+  requested: "승인 대기",
+  approved: "승인 완료",
+  active: "진행 중",
+  done: "완료",
+};
+
+export const HANDOVER_STATUS_TONE = {
+  requested: "yellow",
+  approved: "green",
+  active: "gray",
+  done: "green",
+} as const satisfies Record<HandoverStatus, "yellow" | "green" | "gray">;

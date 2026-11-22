@@ -37,7 +37,7 @@ export function OffMailDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[455px] gap-0 rounded-2xl p-5 sm:max-w-[455px]" showCloseButton={false}>
+      <DialogContent className="max-w-[640px] gap-0 rounded-2xl p-7 sm:max-w-[640px]" showCloseButton={false}>
         {open && (
           <OffMailForm
             key={editing?.id ?? "new"}
@@ -72,7 +72,8 @@ function OffMailForm({
   const [source, setSource] = useState<OffMailSource>(editing?.source ?? "carrier_site");
   const [confirmedAt, setConfirmedAt] = useState(toInput(editing?.confirmedAt ?? demoNow()));
   const [memo, setMemo] = useState(editing?.memo ?? "");
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [files, setFiles] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [touched, setTouched] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -140,12 +141,12 @@ function OffMailForm({
                 aria-checked={on}
                 onClick={() => setSource(s)}
                 className={cn(
-                  "flex h-[30px] items-center gap-1 rounded-full border px-3 text-[13px] font-medium",
-                  on ? "border-primary bg-brand-soft font-semibold text-primary" : "border-field-border bg-background text-ink-2 hover:bg-subtle",
+                  "flex h-10 items-center gap-1.5 rounded-full border px-4 text-sm font-medium",
+                  on ? "border-[1.5px] border-primary bg-brand-soft font-semibold text-primary" : "border-field-border bg-background text-ink-2 hover:bg-subtle",
                 )}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {on && <img src="/figma/check-blue.svg" alt="" width={12} height={12} className="size-3" />}
+                {on && <img src="/figma/check-blue.svg" alt="" width={14} height={14} className="size-3.5" />}
                 {OFF_MAIL_SOURCE_LABEL[s]}
               </button>
             );
@@ -169,7 +170,7 @@ function OffMailForm({
         <textarea
           value={memo}
           onChange={(e) => setMemo(e.target.value)}
-          rows={3}
+          rows={5}
           placeholder="통화 내용이나 메신저 대화를 그대로 붙여 넣어도 돼요"
           className="w-full resize-none rounded-lg border border-field-border bg-background px-3 py-2.5 text-sm outline-none placeholder:text-placeholder focus:border-primary"
         />
@@ -177,17 +178,54 @@ function OffMailForm({
 
       <div>
         <span className={label}>첨부</span>
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-field-border bg-subtle px-4 py-4 text-center">
-          <p className="text-[13px] font-medium text-ink-2">
-            {fileName ?? "캡처 이미지 · PDF · 문서 · 녹음 파일을 끌어다 놓으세요"}
-          </p>
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const names = Array.from(e.dataTransfer.files).map((f) => f.name);
+            if (names.length) setFiles((prev) => [...prev, ...names]);
+          }}
+          className={cn(
+            "flex flex-col items-center gap-2.5 rounded-lg border border-dashed px-4 py-5 text-center",
+            dragging ? "border-primary bg-brand-soft" : "border-field-border bg-subtle",
+          )}
+        >
+          <p className="text-sm font-medium text-ink-2">캡처 이미지 · PDF · 문서 · 녹음 파일을 끌어다 놓으세요</p>
+          {files.length > 0 && (
+            <ul className="flex flex-wrap justify-center gap-1.5">
+              {files.map((f, i) => (
+                <li key={`${f}-${i}`} className="flex items-center gap-1 rounded-full bg-background px-2.5 py-1 text-xs text-ink-2">
+                  {f}
+                  <button
+                    type="button"
+                    aria-label={`${f} 빼기`}
+                    onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
+                    className="text-faint hover:text-foreground"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           <input
             ref={fileRef}
             type="file"
+            multiple
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.hwp,audio/*"
             className="hidden"
-            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+            onChange={(e) => {
+              const names = Array.from(e.target.files ?? []).map((f) => f.name);
+              if (names.length) setFiles((prev) => [...prev, ...names]);
+              e.target.value = "";
+            }}
           />
-          <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => fileRef.current?.click()}>
+          <Button type="button" variant="outline" onClick={() => fileRef.current?.click()}>
             파일 선택
           </Button>
         </div>
